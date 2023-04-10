@@ -186,14 +186,13 @@ func fileServer(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-/*
-	func updateProgress(w http.ResponseWriter, percentage int) {
-		// Progress format Javascript script update progress and counter
-		progress := fmt.Sprintf(`<script>document.querySelector('.progressbar .progress').style.width = '%d%%';document.querySelector('.counter').textContent = '%d%%'; </script>`, percentage, percentage)
-		//w.Header().Set("Content-Type", "text/html")
-		fmt.Fprint(w, progress)
-	}
-*/
+func updateProgress(w http.ResponseWriter, percentage int) {
+	// Progress format Javascript script update progress and counter
+	progress := fmt.Sprintf(`<script>document.querySelector('.progressbar .progress').style.width = '%d%%';document.querySelector('.counter').textContent = '%d%%'; </script>`, percentage, percentage)
+	w.Header().Set("Content-Type", "text/html")
+	fmt.Fprint(w, progress)
+}
+
 /*
 func updateProgress(w http.ResponseWriter, percentage int) {
 	// Set the content type to HTML
@@ -209,6 +208,7 @@ func updateProgress(w http.ResponseWriter, percentage int) {
 	// Write the HTML to the response writer
 	fmt.Fprint(w, progressBar)
 }*/
+/*
 func updateProgress(w http.ResponseWriter, percentage int) {
 	// Generate the JavaScript code to update the progress bar
 	jsCode := fmt.Sprintf(`document.getElementById('progress').style.width = '%d%%';`, percentage)
@@ -217,4 +217,4 @@ func updateProgress(w http.ResponseWriter, percentage int) {
 	// Write the JavaScript code to the response writer
 	w.Header().Set("Content-Type", "text/javascript")
 	w.Write([]byte(jsCode))
-}
+}*/
