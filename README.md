@@ -11,6 +11,8 @@ It is planned to run this GO in container or somewhere.
 
 `main.go` is main function of whole project. 
 
+![Tux, the Linux mascot](/images/goblob_uploader.png)
+[Screenshot](/images/goblob_uploader.png "Just an basic view of webform.")
 
 ## Requirements 
 
