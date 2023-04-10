@@ -7,6 +7,11 @@ At the end it will provide you new SAS URI which can be shared. URI has limited 
 
 It is planned to run this GO in container or somewhere.
 
+`upload_page.html` is a template page which is used in Go code to render HTML with CSS styles. 
+
+`main.go` is main function of whole project. 
+
+
 ## Requirements 
 
 ### Environmnet variables
