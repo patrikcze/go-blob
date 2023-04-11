@@ -1,9 +1,8 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 
 <head>
     <meta charset='utf-8'>
-    <meta http-equiv='X-UA-Compatible' content='IE=edge'>
     <title>Go Blob File Uploader</title>
     <meta name='viewport' content='width=device-width, initial-scale=1'>
     <script type="text/javascript">
@@ -87,24 +86,33 @@
 
 <body>
     <center>
+
+        <h1>Go Blob File Uploader</h1><br />
+        <br />
         <div class="upload">
-            <h1>Go Blob File Uploader</h1><br />
-            <br />
             <form class="upload-form" action="/" method="post" enctype="multipart/form-data">
-                <input id="file" type="file" name="myFile" style="align-items: center;" /><br />
+
+                <input type="file" name="myFile" /><br />
                 <button type="submit">Upload</button><br /><br />
-                
+
             </form>
             <script src="https://code.jquery.com/jquery-3.6.4.min.js"></script>
-                <script>
-                    $(document).ready(function() {
-                        var n = $(".n").val();
-                        $.post("/", { Progress: n }, function (data) {
-                            $("#result").html(data);
-                        });
-                    });
-                </script>
-            <div class="progress-bar" style="--width: {{.Progress}}" data-label="Upload...{{.Progress}}%"></div>
+            <script>
+                $(document).ready(function() {
+                    // Open WebSocket connection
+                    const ws = new WebSocket("ws://" + window.location.host + "/upload");
+            
+                    // Listen for progress updates
+                    ws.onmessage = function(event) {
+                        const data = JSON.parse(event.data);
+                        const progress = data.progress;
+                        $('.progress-bar').css('--width', progress);
+                        $('.progress-bar').attr('data-label', `Upload... ${progress}%`);
+                    };
+                });
+            </script>
+            <div class="progress-bar" style="--width: {{.Progress}}" data-label="Upload... {{.Progress}} %"></div>
+            <p name="result" id="result"></p>
         </div>
     </center>
 </body>

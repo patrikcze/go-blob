@@ -12,6 +12,7 @@ import (
 
 	"github.com/Azure/azure-pipeline-go/pipeline"
 	"github.com/Azure/azure-storage-blob-go/azblob"
+	"github.com/schollz/progressbar/v3"
 )
 
 // Define a struct to hold the template data
@@ -25,6 +26,8 @@ var (
 	storageAccountKey  string
 	storageContainer   string
 	data               TemplateData
+	uploadedBytes      int64
+	percentage         float64
 )
 
 const (
@@ -110,9 +113,7 @@ func fileServer(w http.ResponseWriter, r *http.Request) {
 		}
 		defer file.Close()
 		fmt.Printf("Received file: %+v\n", handler.Filename)
-		// reset some values
-		var uploadedBytes int64 = 0
-		var percentage float64 = 0.0
+
 		// Get Filename and File size from input file
 		var fileSize int64 = handler.Size
 		var fileName string = handler.Filename
@@ -133,21 +134,27 @@ func fileServer(w http.ResponseWriter, r *http.Request) {
 		//Never expiring context
 		ctx := context.Background()
 		// Progress bar for commandline uploading file.
-		// bar := progressbar.DefaultBytes(fileSize, "Uploading")
+		bar := progressbar.New(100)
+
+		// reset some values
+		uploadedBytes = 0
+		percentage = 0.0
+
 		// Upload with progress meter
 		_, err = blobURL.Upload(ctx, pipeline.NewRequestBodyProgress(file, func(bytesTransferred int64) {
 			uploadedBytes += bytesTransferred
-			//bar.Add(int(bytesTransferred))
 			//fmt.Println("Number of bytes transferred:", bytesTransferred)
 			//fmt.Println("Total uploaded bytes:", uploadedBytes)
 			percentage = (float64(bytesTransferred) / float64(fileSize)) * 100
-			// Update progress Bar :(
-			// Execute the template with the updated data, which includes the progress script
+
+			//Set The Progress
 			data.Progress = int(percentage)
 
+			// Update progress Console Progress Bar
+			bar.Set(int(percentage))
 			//tmpl.Execute(w, data)
 			//fmt.Fprintf(w, `Progres(%d);`, int(percentage))
-			log.Print("Percentage : ", percentage)
+			//log.Print("Percentage : ", percentage)
 			//fmt.Fprint(w, "<script>updateProgressBar(progressBar,%s)</script>", int(percentage))
 			// Run function to update progress
 			//updateProgress(w, int(percentage))
@@ -166,7 +173,6 @@ func fileServer(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Execute the template with the updated data, which includes the progress script
-		w.Header().Set("Content-Type", "text/html")
 		err = tmpl.Execute(w, data)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -191,6 +197,7 @@ func fileServer(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
 		sasToken := sasQueryParams.Encode()
+		// Encoded query values withou ?
 		sasURL.RawQuery = sasToken
 
 		urlToSendToSomeone := fmt.Sprintf("https://%s.blob.core.windows.net/%s/%s?%s",
