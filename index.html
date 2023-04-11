@@ -11,16 +11,13 @@
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.3/jquery.min.js"></script>
     <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/js/bootstrap.min.js"></script>
     <script src='https://code.jquery.com/jquery-3.6.0.min.js'></script>
+    <link href="style.css" rel="stylesheet" type="text/css">
+    <script src="https://kit.fontawesome.com/c5fe5a68a5.js" crossorigin="anonymous"></script>
     <script type="text/javascript">
         function copyToClipboard(url) {
             navigator.clipboard.writeText(url)
                 .then(() => alert(`Download link copied to clipboard: ${url}`))
                 .catch((e) => console.error(e));
-        }
-    </script>
-    <script type="text/javascript">
-        const upload = () => {
-            const progressBar = document.querySelector('.progress')
         }
     </script>
     <style>
@@ -155,22 +152,64 @@
 </head>
 
 <body>
+    <script>
+        // Declare global variables for easy access 
+        const uploadForm = document.querySelector('.upload-form');
+        const filesInput = uploadForm.querySelector('#file');
+        // Attach onchange event handler to the files input element
+        filesInput.onchange = () => {
+            // Append all the file names to the label
+            uploadForm.querySelector('label').innerHTML = '';
+            for (let i = 0; i < filesInput.files.length; i++) {
+                uploadForm.querySelector('label').innerHTML += '<span><i class="fa-solid fa-file"></i>' + filesInput.files[i].name + '</span>';
+            }
+        };
+        // Attach submit event handler to form
+        uploadForm.onsubmit = event => {
+            event.preventDefault();
+            // Make sure files are selected
+            if (!filesInput.files.length) {
+                uploadForm.querySelector('.result').innerHTML = 'Please select a file!';
+            } else {
+                // Create the form object
+                let uploadFormDate = new FormData(uploadForm);
+                // Initiate the AJAX request
+                let request = new XMLHttpRequest();
+                // Ensure the request method is POST
+                request.open('POST', uploadForm.action);
+                // Attach the progress event handler to the AJAX request
+                request.upload.addEventListener('progress', event => {
+                    // Add the current progress to the button
+                    uploadForm.querySelector('button').innerHTML = 'Uploading... ' + '(' + ((event.loaded / event.total) * 100).toFixed(2) + '%)';
+                    // Update the progress bar
+                    uploadForm.querySelector('.progress').style.background = 'linear-gradient(to right, #25b350, #25b350 ' + Math.round((event.loaded / event.total) * 100) + '%, #e6e8ec ' + Math.round((event.loaded / event.total) * 100) + '%)';
+                    // Disable the submit button
+                    uploadForm.querySelector('button').disabled = true;
+                });
+                // The following code will execute when the request is complete
+                request.onreadystatechange = () => {
+                    if (request.readyState == 4 && request.status == 200) {
+                        // Output the response message
+                        uploadForm.querySelector('.result').innerHTML = request.responseText;
+                    }
+                };
+                // Execute request
+                request.send(uploadFormDate);
+            }
+        };
+    </script>
     <h1>Go Blob File Uploader</h1><br />
     <br />
-    <form action="/" method="post" enctype="multipart/form-data">
-        <input type="file" name="myFile" /><br />
-        <input type="submit" value="Upload" /><br />
-        <br />
-        <br />
-        <div class="progress">
-            <div class="progress-bar progress-bar-success" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" style="width:0%">
-              0% Uploaded
-            </div>
-        </div>
-        <div class="counter">0%</div>
-        <div class="progressbar">
-            <span class="progress"></span>
-        </div>
+    <form class="upload-form" action="/" method="post" enctype="multipart/form-data">
+        <label for="file"><i class="fa-solid fa-folder-open fa-2x"></i>Select file ...</label>
+        <input id="file" type="file" name="myFile" /><br />
+
+        <div class="progress"></div>
+
+        <button type="submit">Upload</button>
+
+        <div class="result"></div>
+
     </form>
 </body>
 
