@@ -12,6 +12,7 @@ import (
 
 	"github.com/Azure/azure-pipeline-go/pipeline"
 	"github.com/Azure/azure-storage-blob-go/azblob"
+	"github.com/gorilla/websocket"
 	"github.com/schollz/progressbar/v3"
 )
 
@@ -220,3 +221,26 @@ func updateProgress(w http.ResponseWriter, percentage int) {
 	fmt.Fprint(w, progress)
 }
 */
+
+func uploadHandler(w http.ResponseWriter, r *http.Request) {
+	// Upgrade connection to WebSocket
+	upgrader := websocket.Upgrader{}
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		// Handle error
+	}
+
+	// Periodically send progress updates
+	for i := 0; i <= 100; i += 10 {
+		progress := i
+		message := fmt.Sprintf(`{"progress": %d}`, progress)
+		err := conn.WriteMessage(websocket.TextMessage, []byte(message))
+		if err != nil {
+			// Handle error
+		}
+		time.Sleep(time.Second)
+	}
+
+	// Close WebSocket connection
+	conn.Close()
+}
