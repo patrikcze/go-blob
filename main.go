@@ -17,6 +17,7 @@ import (
 var storageAccountName string
 var storageAccountKey string
 var storageContainer string
+var data TemplateData
 
 const (
 	// BlockBlobMaxUploadBlobBytes indicates the maximum number of bytes that can be sent in a call to Upload.
@@ -34,7 +35,7 @@ const (
 
 // Define a struct to hold the template data
 type TemplateData struct {
-	ProgressScript string
+	Percentage int
 }
 
 func main() {
@@ -65,7 +66,8 @@ func fileServer(w http.ResponseWriter, r *http.Request) {
 
 	// Initialize the template data with an empty progress script
 	data := TemplateData{
-		ProgressScript: "",
+		//ProgressScript: "",
+		Percentage: 0,
 	}
 	switch r.Method {
 	case "GET":
@@ -123,10 +125,15 @@ func fileServer(w http.ResponseWriter, r *http.Request) {
 			//fmt.Println("Number of bytes transferred:", bytesTransferred)
 			//fmt.Println("Total uploaded bytes:", uploadedBytes)
 			percentage = (float64(bytesTransferred) / float64(fileSize)) * 100
+			// Update progress Bar :(
+			// Execute the template with the updated data, which includes the progress script
 
+			//tmpl.Execute(w, Progress)
+			//fmt.Fprintf(w, `<script>updateProgressBar(%d);</script>`, int(percentage))
 			fmt.Println("Percentage : ", percentage)
 			//fmt.Fprint(w, "<script>updateProgressBar(progressBar,%s)</script>", int(percentage))
-			updateProgress(w, int(percentage))
+			// Run function to update progress
+			//updateProgress(w, int(percentage))
 		}),
 			blobHTTPHeaders,
 			azblob.Metadata{},
@@ -156,9 +163,8 @@ func fileServer(w http.ResponseWriter, r *http.Request) {
 		expiryTime := time.Now().UTC().Add(14 * 24 * time.Hour)
 
 		sasQueryParams, err := azblob.BlobSASSignatureValues{
-			Protocol:    azblob.SASProtocolHTTPS,
-			Permissions: permissions.String(),
-			//StartTime:   time.Now().Add(-15 * time.Minute),
+			Protocol:      azblob.SASProtocolHTTPS,
+			Permissions:   permissions.String(),
 			ExpiryTime:    expiryTime,
 			ContainerName: storageContainer,
 			BlobName:      fileName,
@@ -167,10 +173,6 @@ func fileServer(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
 		sasToken := sasQueryParams.Encode()
-		/*
-			urlToSendToSomeone := fmt.Sprintf("https://%s.blob.core.windows.net/%s/%s?%s",
-				storageAccountName, storageContainer, sasURL.RawQuery, sasToken)
-		*/
 		sasURL.RawQuery = sasToken
 
 		urlToSendToSomeone := fmt.Sprintf("https://%s.blob.core.windows.net/%s/%s?%s",
@@ -179,20 +181,20 @@ func fileServer(w http.ResponseWriter, r *http.Request) {
 		// Return SAS URI to HTML page as a link
 		fmt.Fprintf(w, "<h3>File uploaded successfully to Azure Blob Storage!</h3><br />")
 		fmt.Fprintf(w, "<a href=\"#\" onclick=\"copyToClipboard('%s')\">Copy Download Link to Clipboard</a><br />", urlToSendToSomeone)
-
-		//fmt.Fprintf(w, "<a href=\"https://%s.blob.core.windows.net/%s/%s\" target=\"_blank\">Download File (Link will be valid for 14 Days!)</a><br />", storageAccountName, storageContainer, handler.Filename+sasToken)
-		//fmt.Fprintf(w, "<a href=\"%s\" target=\"_blank\">Download File (Link will be valid for 14 Days!)</a><br />", sasURL.String())
 		fmt.Fprintf(w, "<a href=\"%s\" target=\"_blank\">Download File (Link will be valid for 14 Days!)</a><br />", urlToSendToSomeone)
+	default:
+		fmt.Fprintf(w, "Sorry, only GET and POST methods are supported.")
 	}
 }
 
+/*
 func updateProgress(w http.ResponseWriter, percentage int) {
 	// Progress format Javascript script update progress and counter
-	progress := fmt.Sprintf(`<script>document.querySelector('.progressbar .progress').style.width = '%d%%';document.querySelector('.counter').textContent = '%d%%'; </script>`, percentage, percentage)
+	progress := fmt.Sprintf(`<script language="JavaScript" type="text/javascript">uploadForm.querySelector('.result').textContent = '%d%%'; </script>`, percentage)
 	w.Header().Set("Content-Type", "text/html")
 	fmt.Fprint(w, progress)
 }
-
+*/
 /*
 func updateProgress(w http.ResponseWriter, percentage int) {
 	// Set the content type to HTML
