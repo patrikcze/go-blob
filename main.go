@@ -21,6 +21,11 @@ type TemplateData struct {
 	Progress int
 }
 
+// Define a struct to hold the WebSocket connection
+type WebSocket struct {
+	Conn *websocket.Conn
+}
+
 // Global variables
 var (
 	storageAccountName string
@@ -92,6 +97,24 @@ func fileServer(w http.ResponseWriter, r *http.Request) {
 		//ProgressScript: "",
 		Progress: 0,
 	}
+
+	/*
+				//#################################################
+		 		//WEB SOCKET FUNCTION UPDATE IF NEEDED
+				//#################################################
+				// Initialize the WebSocket connection
+				upgrader := websocket.Upgrader{}
+				conn, err := upgrader.Upgrade(w, r, nil)
+				if err != nil {
+					// Handle error
+					return
+				}
+				defer conn.Close()
+				webSocket := WebSocket{Conn: conn}
+
+				// Handle the file upload
+				uploadHandler(r, &webSocket)
+	*/
 	switch r.Method {
 	case "GET":
 		// Serve the upload form
@@ -221,7 +244,29 @@ func updateProgress(w http.ResponseWriter, percentage int) {
 	fmt.Fprint(w, progress)
 }
 */
+/*
+#################################################
+ WEB SOCKET FUNCTION UPDATE IF NEEDED
+#################################################
+ JAVASCRIPT IN HTML TO LISTEN:
 
+ <script>
+    $(document).ready(function() {
+        // Open WebSocket connection
+        const ws = new WebSocket("ws://" + window.location.host + "/upload");
+
+        // Listen for progress updates
+        ws.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+            const progress = data.progress;
+            $('.progress-bar').css('--width', progress);
+            $('.progress-bar').attr('data-label', `Upload... ${progress}%`);
+        };
+    });
+</script>
+#################################################
+*/
+/*
 func uploadHandler(w http.ResponseWriter, r *http.Request) {
 	// Upgrade connection to WebSocket
 	upgrader := websocket.Upgrader{}
@@ -244,3 +289,4 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 	// Close WebSocket connection
 	conn.Close()
 }
+*/

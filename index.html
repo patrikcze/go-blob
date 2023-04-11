@@ -98,18 +98,22 @@
             </form>
             <script src="https://code.jquery.com/jquery-3.6.4.min.js"></script>
             <script>
-                $(document).ready(function() {
-                    // Open WebSocket connection
-                    const ws = new WebSocket("ws://" + window.location.host + "/upload");
-            
-                    // Listen for progress updates
-                    ws.onmessage = function(event) {
-                        const data = JSON.parse(event.data);
-                        const progress = data.progress;
-                        $('.progress-bar').css('--width', progress);
-                        $('.progress-bar').attr('data-label', `Upload... ${progress}%`);
-                    };
+                $(document).ready(function () {
+                    $.ajax({
+                        url: '/',
+                        type: "get",
+                        data: "progress",
+                        dataType: 'html',
+                        beforeSend: function () {
+                            $('#response').append("loading..<br/>");
+                        },
+                        success: afterSend
+                    });
                 });
+                function afterSend(result) {
+                    $('#response').append(result);
+                };
+
             </script>
             <div class="progress-bar" style="--width: {{.Progress}}" data-label="Upload... {{.Progress}} %"></div>
             <p name="result" id="result"></p>
