@@ -127,9 +127,9 @@ func fileServer(w http.ResponseWriter, r *http.Request) {
 			percentage = (float64(bytesTransferred) / float64(fileSize)) * 100
 			// Update progress Bar :(
 			// Execute the template with the updated data, which includes the progress script
-
-			//tmpl.Execute(w, Progress)
-			//fmt.Fprintf(w, `<script>updateProgressBar(%d);</script>`, int(percentage))
+			//data := TemplateData{Percentage: int(percentage)}
+			//tmpl.Execute(w, data)
+			fmt.Fprintf(w, `Percentage(%d);`, int(percentage))
 			fmt.Println("Percentage : ", percentage)
 			//fmt.Fprint(w, "<script>updateProgressBar(progressBar,%s)</script>", int(percentage))
 			// Run function to update progress

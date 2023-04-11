@@ -101,18 +101,17 @@
             <form class="upload-form" action="/" method="post" enctype="multipart/form-data">
                 <input id="file" type="file" name="myFile" style="align-items: center;" /><br />
                 <button type="submit">Upload</button><br /><br />
-
+                
             </form>
             <script src="https://code.jquery.com/jquery-3.6.4.min.js"></script>
-            <script>
-                $(document).ready(function () {
-                    $(".send").click(function() {
-                    var n = $(".n").val();
-                    $.post("/", { Percentage: n }, function (data) {
-                        $("#result").html(data);
+                <script>
+                    $(document).ready(function() {
+                        var n = $(".n").val();
+                        $.post("/", { Percentage: n }, function (data) {
+                            $("#result").html(data);
+                        });
                     });
-                })});
-            </script>
+                </script>
             <div class="progress-bar" style="--width: {{.Percentage}}" data-label="Upload...{{.Percentage}}%"></div>
         </div>
     </center>
