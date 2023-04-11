@@ -57,7 +57,7 @@ func fileServer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Parse the HTML template
-	tmpl, err := template.ParseFiles("upload_page.html")
+	tmpl, err := template.ParseFiles("index.html")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
