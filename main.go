@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"html/template"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -13,11 +14,18 @@ import (
 	"github.com/Azure/azure-storage-blob-go/azblob"
 )
 
-// Global vars
-var storageAccountName string
-var storageAccountKey string
-var storageContainer string
-var data TemplateData
+// Define a struct to hold the template data
+type TemplateData struct {
+	Progress int
+}
+
+// Global variables
+var (
+	storageAccountName string
+	storageAccountKey  string
+	storageContainer   string
+	data               TemplateData
+)
 
 const (
 	// BlockBlobMaxUploadBlobBytes indicates the maximum number of bytes that can be sent in a call to Upload.
@@ -33,23 +41,34 @@ const (
 	SASTimeFormat = "2006-01-02T15:04:05Z"
 )
 
-// Define a struct to hold the template data
-type TemplateData struct {
-	Percentage int
-}
+// Initialize the Azure Blob Storage credentials
+func init() {
+	// Ensure that storageAccountName, storageAccountKey and storageContainer are not empty
+	if os.Getenv("AZURE_STORAGE_ACCOUNT_NAME") == "" {
+		log.Fatal("AZURE_STORAGE_ACCOUNT_NAME is not set.")
+	}
+	if os.Getenv("AZURE_STORAGE_ACCOUNT_KEY") == "" {
+		log.Fatal("AZURE_STORAGE_ACCOUNT_KEY is not set.")
+	}
+	if os.Getenv("AZURE_STORAGE_ACCOUNT_CONTAINER") == "" {
+		log.Fatal("AZURE_STORAGE_ACCOUNT_CONTAINER is not set.")
+	}
 
-func main() {
-	// Get the storage account credentials from Environmentals
+	// Get the storage account credentials from the environment variables
 	storageAccountName = os.Getenv("AZURE_STORAGE_ACCOUNT_NAME")
 	storageAccountKey = os.Getenv("AZURE_STORAGE_ACCOUNT_KEY")
 	storageContainer = os.Getenv("AZURE_STORAGE_ACCOUNT_CONTAINER")
+}
 
+func main() {
 	// Create a file server
 	http.HandleFunc("/", fileServer)
 
 	// Start the server
 	fmt.Println("Starting server on port 8081...")
-	http.ListenAndServe(":8081", nil)
+	if err := http.ListenAndServe(":8081", nil); err != nil {
+		log.Fatalf("failed to start the server: %v", err)
+	}
 }
 
 func fileServer(w http.ResponseWriter, r *http.Request) {
@@ -65,16 +84,13 @@ func fileServer(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Initialize the template data with an empty progress script
-	data := TemplateData{
+	data = TemplateData{
 		//ProgressScript: "",
-		Percentage: 0,
+		Progress: 0,
 	}
 	switch r.Method {
 	case "GET":
 		// Serve the upload form
-		// Generate and serve the HTML page with CSS
-
-		// Execute the template with the initial data
 		err = tmpl.Execute(w, data)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -127,10 +143,11 @@ func fileServer(w http.ResponseWriter, r *http.Request) {
 			percentage = (float64(bytesTransferred) / float64(fileSize)) * 100
 			// Update progress Bar :(
 			// Execute the template with the updated data, which includes the progress script
-			//data := TemplateData{Percentage: int(percentage)}
+			data.Progress = int(percentage)
+
 			//tmpl.Execute(w, data)
-			fmt.Fprintf(w, `Percentage(%d);`, int(percentage))
-			fmt.Println("Percentage : ", percentage)
+			//fmt.Fprintf(w, `Progres(%d);`, int(percentage))
+			log.Print("Percentage : ", percentage)
 			//fmt.Fprint(w, "<script>updateProgressBar(progressBar,%s)</script>", int(percentage))
 			// Run function to update progress
 			//updateProgress(w, int(percentage))
@@ -149,6 +166,7 @@ func fileServer(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Execute the template with the updated data, which includes the progress script
+		w.Header().Set("Content-Type", "text/html")
 		err = tmpl.Execute(w, data)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -195,28 +213,3 @@ func updateProgress(w http.ResponseWriter, percentage int) {
 	fmt.Fprint(w, progress)
 }
 */
-/*
-func updateProgress(w http.ResponseWriter, percentage int) {
-	// Set the content type to HTML
-	w.Header().Set("Content-Type", "text/html")
-
-	// Generate the HTML for the progress bar
-	progressBar := fmt.Sprintf(`<div class="progress">
-    <div class="progress-bar progress-bar-success" role="progressbar" aria-valuenow="%d" aria-valuemin="0" aria-valuemax="100" style="width:%d%%;">
-      %d%% Uploaded
-    	</div>
-  	</div>`, percentage, percentage, percentage)
-
-	// Write the HTML to the response writer
-	fmt.Fprint(w, progressBar)
-}*/
-/*
-func updateProgress(w http.ResponseWriter, percentage int) {
-	// Generate the JavaScript code to update the progress bar
-	jsCode := fmt.Sprintf(`document.getElementById('progress').style.width = '%d%%';`, percentage)
-	jsCode += fmt.Sprintf(`document.getElementById('counter').textContent = '%d%%');`, percentage)
-
-	// Write the JavaScript code to the response writer
-	w.Header().Set("Content-Type", "text/javascript")
-	w.Write([]byte(jsCode))
-}*/

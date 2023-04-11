@@ -86,14 +86,6 @@
 </head>
 
 <body>
-    <script>
-        function updateProgressBar(percent) {
-            const progressBar = document.getElementById("progress-bar")[0];
-            const computedStyle = getComputedStyle(progressBar)
-            const width = parseFloat(computedStyle.getPropertyValue('--width')) || 0
-            progressBar.style.setProperty('--width', percent)
-        }
-    </script>
     <center>
         <div class="upload">
             <h1>Go Blob File Uploader</h1><br />
@@ -107,12 +99,12 @@
                 <script>
                     $(document).ready(function() {
                         var n = $(".n").val();
-                        $.post("/", { Percentage: n }, function (data) {
+                        $.post("/", { Progress: n }, function (data) {
                             $("#result").html(data);
                         });
                     });
                 </script>
-            <div class="progress-bar" style="--width: {{.Percentage}}" data-label="Upload...{{.Percentage}}%"></div>
+            <div class="progress-bar" style="--width: {{.Progress}}" data-label="Upload...{{.Progress}}%"></div>
         </div>
     </center>
 </body>
