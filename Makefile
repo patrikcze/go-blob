@@ -17,6 +17,7 @@ GOARCH=$(shell uname -m)
 .PHONY: build-app
 build-app:
 	go build -ldflags "-X main.Version=$(VERSION) -X main.BuildTime=$(BUILD_TIME)" -o release/$(APP) main.go
+	cp index.html release/index.html
 
 .PHONY: docker-build
 docker-build: build-app
