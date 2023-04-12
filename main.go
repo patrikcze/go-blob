@@ -75,8 +75,8 @@ func main() {
 	http.HandleFunc("/", fileServer)
 
 	// Start the server
-	fmt.Println("Starting server on port 8081...")
-	if err := http.ListenAndServe(":8081", nil); err != nil {
+	fmt.Println("Starting server on port 9000...")
+	if err := http.ListenAndServe(":9000", nil); err != nil {
 		log.Fatalf("failed to start the server: %v", err)
 	}
 }
