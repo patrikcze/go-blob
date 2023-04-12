@@ -1,5 +1,5 @@
 # Make variables
-APP=go-uploader
+APP=go-blob
 VERSION=0.0.9
 BUILD_TIME=$(shell date -u +%Y-%m-%dT%H:%M:%S.%NZ)
 DOCKER_ORG=mytestorg
