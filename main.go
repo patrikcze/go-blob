@@ -12,7 +12,7 @@ import (
 
 	"github.com/Azure/azure-pipeline-go/pipeline"
 	"github.com/Azure/azure-storage-blob-go/azblob"
-	"github.com/gorilla/websocket"
+
 	"github.com/schollz/progressbar/v3"
 )
 
@@ -21,11 +21,12 @@ type TemplateData struct {
 	Progress int
 }
 
+/*
 // Define a struct to hold the WebSocket connection
 type WebSocket struct {
 	Conn *websocket.Conn
 }
-
+*/
 // Global variables
 var (
 	storageAccountName string
