@@ -14,6 +14,27 @@ It is planned to run this GO in container or somewhere.
 ![Tux, the Linux mascot](/images/goblob_uploader.png)
 [Screenshot](/images/goblob_uploader.png "Just an basic view of webform.")
 
+## How to Use
+1. Setup `environment` variables. (Could be on your computer or you can get them from KeyVault on K8S)
+2. To run `app` locally execute :
+```bash
+make build-app
+```
+3. To build container image execute :
+```bash
+make docker-build
+```
+4. To run `app` in docker container run (It is not a Deamon to stop run `CTRL+C`): 
+```bash
+make start
+```
+5. To clean build run.
+```bash
+make cleanup #Will delete release/ folder
+make delete #Will remove docker image
+```
+
+
 ## Requirements 
 
 ### Environmnet variables

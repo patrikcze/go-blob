@@ -1,9 +1,9 @@
 FROM golang:latest
 
-WORKDIR /go/src/app
-COPY ./release .
+WORKDIR /app
 
-RUN go get -d -v ./...
-RUN go install -v ./...
+COPY . .
 
-CMD ["app"]
+RUN go build -o go-blob
+
+CMD ["./go-blob"]
