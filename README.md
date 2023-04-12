@@ -52,5 +52,5 @@ export AZURE_STORAGE_ACCOUNT_CONTAINER=<TargetContainerName>
 
 ## Current issues
 
-- 10.4.2023 - `Still persist` / Progress and Counter CSS via Javascript does not work.
+- 12.4.2023 - `Still persist` / Progress and Counter CSS via Javascript does not work properly.
 - 10.4.2023 - `Fixed` / SAS URI links are fully functional and properly formatted. 
