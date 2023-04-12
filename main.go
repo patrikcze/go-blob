@@ -125,9 +125,14 @@ func fileServer(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	case "POST":
+		// Set buffer size to 25 MB
+		const maxRequestSize = 25 * 1024 * 1024
+		// Limit the size of the request body to prevent denial of service attacks
+		r.Body = http.MaxBytesReader(w, r.Body, maxRequestSize)
+
 		// Handle the file upload
-		if err := r.ParseMultipartForm(512 << 20); err != nil {
-			fmt.Println(err)
+		if err := r.ParseMultipartForm(maxRequestSize); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 		file, handler, err := r.FormFile("myFile")

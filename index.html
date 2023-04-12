@@ -121,7 +121,7 @@
                     progressBarText.textContent = percent.toFixed(2) + "%";
                     console.log(e);
                 });
-                xhr.setRequestHeader("Content-Type", "multipart/form-data");
+                xhr.setRequestHeader("Content-Type", "multipart/form-data; boundary=---------------------------" + Date.now().toString(16));
                 xhr.send(new FormData(uploadForm));
             }
 
