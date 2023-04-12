@@ -97,42 +97,65 @@
                 <span class="progress-bar-text">0%</span>
             </div>
         </div>
+        <div id="response"></div>
         <script>
+            const uploadForm = document.getElementById("uploadForm");
             const fileInput = document.getElementById('myFile');
             const progressBarFill = document.querySelector("#progressBar > .progress-bar-fill");
             const progressBarText = progressBarFill.querySelector(".progress-bar-text");
-
-            fileInput.addEventListener('change', (event) => {
-                const file = event.target.files[0];
+            const responseDiv = document.getElementById("response");
+        
+            // Change the event listener to listen for the "submit" event on the form, not the "click" event on the submit button
+            uploadForm.addEventListener('submit', (event) => {
+                event.preventDefault(); // Prevent the form from submitting normally and refreshing the page
+        
+                // Get the selected file from the file input
+                const file = fileInput.files[0];
+                if (!file) {
+                    alert("Please select a file to upload.");
+                    return;
+                }
+        
+                // Create a new FormData object and append the file to it
                 const formData = new FormData();
                 formData.append('myFile', file);
-
-                fetch('/upload', {
-                    method: 'POST',
-                    body: formData
-                })
-                    .then(response => {
-                        if (!response.ok) {
-                            throw new Error('Network response was not ok');
-                        }
-                        return response;
-                    })
-                    .then(response => response.json())
-                    .then(data => console.log(data))
-                    .catch(error => console.error(error));
+        
+                // Create a new XMLHttpRequest object to send the file via AJAX
+                const xhr = new XMLHttpRequest();
+        
+                // Set up a progress listener to update the progress bar as the file uploads
+                xhr.upload.addEventListener("progress", updateProgressBar);
+        
+                // Set up a listener to handle the server's response
+                xhr.onload = function () {
+                    if (xhr.status === 200) {
+                        const responseHtml = xhr.responseText;
+                        responseDiv.innerHTML = responseHtml;
+                        const downloadLink = responseDiv.querySelector("a[href*='blob.core.windows.net']").getAttribute("href");
+                        copyToClipboard(downloadLink);
+                        //alert(`Upload complete! Download link copied to clipboard: ${downloadLink}`);
+                    } else {
+                        alert("An error occurred while uploading the file.");
+                    }
+                };
+        
+                // Open the connection to the server and send the file
+                xhr.open("POST", "/upload");
+                xhr.send(formData);
+        
             });
-
+        
             function updateProgressBar(progressEvent) {
                 const percent = progressEvent.lengthComputable ? (progressEvent.loaded / progressEvent.total) * 100 : 0;
-
+        
                 progressBarFill.style.width = percent.toFixed(2) + "%";
                 progressBarText.textContent = percent.toFixed(2) + "%";
                 console.log(progressEvent);
             }
-
-
-
+        
         </script>
+        
+        
         <!-- <script src="https://code.jquery.com/jquery-3.6.4.min.js"></script> -->
         <!-- <script>
             const uploadForm = document.getElementById("uploadForm");
@@ -210,7 +233,7 @@
 
         <!-- <div id="progressBar" class="progress-bar" style="--width: {{.Progress}}" data-label="Upload... {{.Progress}} %"></div> -->
 
-        <p id="response"></p>
+        
     </center>
 </body>
 
