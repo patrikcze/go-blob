@@ -51,13 +51,3 @@ export AZURE_STORAGE_ACCOUNT_CONTAINER=<TargetContainerName>
 
 - 10.4.2023 - `Still persist` / Progress and Counter CSS via Javascript does not work.
 - 10.4.2023 - `Fixed` / SAS URI links are fully functional and properly formatted. 
-
-## Usage
-
-
-Compile and execute or simply run :
-
-```bash
-go run .
-```
-Or build within container (will be updated later on).
