@@ -112,26 +112,17 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 
 	// Handle the file upload
 	if err := r.ParseMultipartForm(maxRequestSize); err != nil {
-		log.Printf(err.Error())
+		log.Println(err.Error())
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	/*
-		file, handler, err := r.FormFile("myFile")
-		if err != nil {
-			log.Printf(err.Error())
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		defer file.Close()
-		fmt.Printf("Received file: %+v\n", handler.Filename)
-	*/
+
 	// Process the uploaded files
 	for _, fileHeaders := range r.MultipartForm.File {
 		for _, fileHeader := range fileHeaders {
 			file, err := fileHeader.Open()
 			if err != nil {
-				log.Printf(err.Error())
+				log.Println(err.Error())
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
@@ -173,6 +164,7 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 				//data.Progress = int(percentage)
 				// Update progress Console Progress Bar
 				bar.Set(int(percentage))
+
 				//tmpl.Execute(w, data)
 				//fmt.Fprintf(w, `Progres(%d);`, int(percentage))
 				//log.Print("Percentage : ", percentage)
@@ -189,11 +181,10 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 				azblob.ImmutabilityPolicyOptions{},
 			)
 			if err != nil {
-				fmt.Println(err)
+				log.Println(err)
 				return
 			}
-			//fmt.Println("Uploaded")
-			bar.State()
+
 			/*
 				// Execute the template with the updated data, which includes the progress script
 				err = tmpl.Execute(w, data)
@@ -230,62 +221,27 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprintf(w, "<h3>File uploaded successfully to Azure Blob Storage!</h3><br />")
 			fmt.Fprintf(w, "<a href=\"#\" onclick=\"copyToClipboard('%s')\">Copy Download Link to Clipboard</a><br />", urlToSendToSomeone)
 			fmt.Fprintf(w, "<a href=\"%s\" target=\"_blank\">Download File (Link will be valid for 14 Days!)</a><br />", urlToSendToSomeone)
+
 		}
+
 	}
 
 }
 
+/*
+Function returns the percentage of Blob upload progress.
+perc (int): The calculated progress as a percentage.
+*/
+/* func progressUpdate(w http.ResponseWriter, perc int) {
+	w.Header().Set("Content-Type", "text/javascript")
+	fmt.Fprintf(w, "<script>updateProgressBar</script>")
+}
+*/
 /*
 func updateProgress(w http.ResponseWriter, percentage int) {
 	// Progress format Javascript script update progress and counter
 	progress := fmt.Sprintf(`<script language="JavaScript" type="text/javascript">uploadForm.querySelector('.result').textContent = '%d%%'; </script>`, percentage)
 	w.Header().Set("Content-Type", "text/html")
 	fmt.Fprint(w, progress)
-}
-*/
-/*
-#################################################
- WEB SOCKET FUNCTION UPDATE IF NEEDED
-#################################################
- JAVASCRIPT IN HTML TO LISTEN:
-
- <script>
-    $(document).ready(function() {
-        // Open WebSocket connection
-        const ws = new WebSocket("ws://" + window.location.host + "/upload");
-
-        // Listen for progress updates
-        ws.onmessage = function(event) {
-            const data = JSON.parse(event.data);
-            const progress = data.progress;
-            $('.progress-bar').css('--width', progress);
-            $('.progress-bar').attr('data-label', `Upload... ${progress}%`);
-        };
-    });
-</script>
-#################################################
-*/
-/*
-func uploadHandler(w http.ResponseWriter, r *http.Request) {
-	// Upgrade connection to WebSocket
-	upgrader := websocket.Upgrader{}
-	conn, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		// Handle error
-	}
-
-	// Periodically send progress updates
-	for i := 0; i <= 100; i += 10 {
-		progress := i
-		message := fmt.Sprintf(`{"progress": %d}`, progress)
-		err := conn.WriteMessage(websocket.TextMessage, []byte(message))
-		if err != nil {
-			// Handle error
-		}
-		time.Sleep(time.Second)
-	}
-
-	// Close WebSocket connection
-	conn.Close()
 }
 */

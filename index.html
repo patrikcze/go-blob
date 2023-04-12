@@ -73,6 +73,7 @@
             display: flex;
             align-items: center;
             transition: width 0.25s;
+            border-radius: 1.4em;
         }
 
         .progress-bar-text {
@@ -125,7 +126,7 @@
         
                 // Set up a progress listener to update the progress bar as the file uploads
                 xhr.upload.addEventListener("progress", updateProgressBar);
-        
+                
                 // Set up a listener to handle the server's response
                 xhr.onload = function () {
                     if (xhr.status === 200) {
@@ -133,12 +134,12 @@
                         responseDiv.innerHTML = responseHtml;
                         const downloadLink = responseDiv.querySelector("a[href*='blob.core.windows.net']").getAttribute("href");
                         copyToClipboard(downloadLink);
-                        //alert(`Upload complete! Download link copied to clipboard: ${downloadLink}`);
+                        //alert(`Upload complete! Download link copied to clipboard!`);
                     } else {
                         alert("An error occurred while uploading the file.");
                     }
                 };
-        
+
                 // Open the connection to the server and send the file
                 xhr.open("POST", "/upload");
                 xhr.send(formData);
@@ -154,86 +155,6 @@
             }
         
         </script>
-        
-        
-        <!-- <script src="https://code.jquery.com/jquery-3.6.4.min.js"></script> -->
-        <!-- <script>
-            const uploadForm = document.getElementById("uploadForm");
-            const inpFile = document.getElementById("myFile")
-            const progressBarFill = document.querySelector("#progressBar > .progress-bar-fill");
-            const progressBarText = progressBarFill.querySelector(".progress-bar-text");
-
-            uploadForm.addEventListener("submit", uploadFile);
-
-            function uploadFile(e) {
-                e.preventDefault();
-
-                const xhr = new XMLHttpRequest();
-
-                xhr.open("POST", "/upload");
-                xhr.upload.addEventListener("progress", e => {
-                    const percent = e.lengthComputable ? (e.loaded / e.total) * 100 : 0;
-
-                    progressBarFill.style.width = percent.toFixed(2) + "%";
-                    progressBarText.textContent = percent.toFixed(2) + "%";
-                    console.log(e);
-                });
-                xhr.setRequestHeader("Content-Type", "multipart/form-data; boundary=---------------------------" + Date.now().toString(16));
-                xhr.send(new FormData(uploadForm));
-            }
-
-        </script> -->
-
-        <!-- <script>
-                $(document).ready(function () {
-
-                    $('#upload').click(function () {
-                        // Set up progress bar
-                        const progressBar = document.querySelector('.progress-bar');
-                        progressBar.setAttribute('--width: ', '0') = '0%';
-                        progressBar.setAttribute('data-label', 'Upload... 0%');
-
-                        // Set up FormData object to send file
-                        const formData = new FormData();
-                        formData.append('file', file);
-
-                        // Make AJAX request to server
-                        const xhr = new XMLHttpRequest();
-                        xhr.open('POST', '/');
-                        xhr.upload.addEventListener('loadstart', () => {
-                            // show progress bar if upload starts
-                            progressBar.style.display = 'flex';
-                        });
-                        xhr.upload.addEventListener('progress', (e) => {
-                            // update progress bar on each progress event
-                            const progress = Math.round((e.loaded / e.total) * 100);
-                            progressBar.style.width = `${progress}%`;
-                            progressBar.setAttribute('data-label', `Upload... ${progress}%`);
-                        });
-                        xhr.addEventListener('load', () => {
-                            // hide progress bar if upload complete
-                            progressBar.style.display = 'none';
-                            // handle response from server
-                            const response = JSON.parse(xhr.response);
-                            console.log(response);
-                        });
-                        xhr.send(formData);
-                    });
-                });
-                // Get file input element
-                const fileInput = document.querySelector('#file-input');
-
-                // Listen for file selection
-                fileInput.addEventListener('change', () => {
-                    const file = fileInput.files[0];
-                    uploadFile(file);
-                });
-            </script> -->
-
-
-        <!-- <div id="progressBar" class="progress-bar" style="--width: {{.Progress}}" data-label="Upload... {{.Progress}} %"></div> -->
-
-        
     </center>
 </body>
 
