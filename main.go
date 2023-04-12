@@ -21,12 +21,6 @@ type TemplateData struct {
 	Progress int
 }
 
-/*
-// Define a struct to hold the WebSocket connection
-type WebSocket struct {
-	Conn *websocket.Conn
-}
-*/
 // Global variables
 var (
 	storageAccountName string
@@ -72,7 +66,8 @@ func init() {
 
 func main() {
 	// Create a file server
-	http.HandleFunc("/", fileServer)
+	http.HandleFunc("/", handleGet)
+	http.HandleFunc("/upload", handlePost)
 
 	// Start the server
 	fmt.Println("Starting server on port 9000...")
@@ -81,9 +76,9 @@ func main() {
 	}
 }
 
-func fileServer(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/" {
-		http.Error(w, "404 not found.", http.StatusNotFound)
+func handleGet(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 	// Parse the HTML template
@@ -98,148 +93,146 @@ func fileServer(w http.ResponseWriter, r *http.Request) {
 		//ProgressScript: "",
 		Progress: 0,
 	}
+	err = tmpl.Execute(w, data)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
+func handlePost(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		log.Printf("Method not allowed!")
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	// Set buffer size to 512 MB
+	const maxRequestSize = 512 * 1024 * 1024
+	// Limit the size of the request body to prevent denial of service attacks
+	r.Body = http.MaxBytesReader(w, r.Body, maxRequestSize)
 
+	// Handle the file upload
+	if err := r.ParseMultipartForm(maxRequestSize); err != nil {
+		log.Printf(err.Error())
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 	/*
-				//#################################################
-		 		//WEB SOCKET FUNCTION UPDATE IF NEEDED
-				//#################################################
-				// Initialize the WebSocket connection
-				upgrader := websocket.Upgrader{}
-				conn, err := upgrader.Upgrade(w, r, nil)
-				if err != nil {
-					// Handle error
-					return
-				}
-				defer conn.Close()
-				webSocket := WebSocket{Conn: conn}
-
-				// Handle the file upload
-				uploadHandler(r, &webSocket)
-	*/
-	switch r.Method {
-	case "GET":
-		// Serve the upload form
-		err = tmpl.Execute(w, data)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-	case "POST":
-		// Set buffer size to 25 MB
-		const maxRequestSize = 25 * 1024 * 1024
-		// Limit the size of the request body to prevent denial of service attacks
-		r.Body = http.MaxBytesReader(w, r.Body, maxRequestSize)
-
-		// Handle the file upload
-		if err := r.ParseMultipartForm(maxRequestSize); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
 		file, handler, err := r.FormFile("myFile")
 		if err != nil {
-			fmt.Println(err)
+			log.Printf(err.Error())
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		defer file.Close()
 		fmt.Printf("Received file: %+v\n", handler.Filename)
+	*/
+	// Process the uploaded files
+	for _, fileHeaders := range r.MultipartForm.File {
+		for _, fileHeader := range fileHeaders {
+			file, err := fileHeader.Open()
+			if err != nil {
+				log.Printf(err.Error())
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			defer file.Close()
+			fmt.Printf("\nReceived file: %+v\n", fileHeader.Filename)
+			// Get Filename and File size from input file
+			var fileSize int64 = fileHeader.Size
+			var fileName string = fileHeader.Filename
 
-		// Get Filename and File size from input file
-		var fileSize int64 = handler.Size
-		var fileName string = handler.Filename
+			// Upload to Azure Storage
+			credential, err := azblob.NewSharedKeyCredential(storageAccountName, storageAccountKey)
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+			p := azblob.NewPipeline(credential, azblob.PipelineOptions{})
+			URL, _ := url.Parse(fmt.Sprintf("https://%s.blob.core.windows.net/%s", storageAccountName, storageContainer))
+			containerURL := azblob.NewContainerURL(*URL, p)
+			blobURL := containerURL.NewBlockBlobURL(fileHeader.Filename)
+			blobHTTPHeaders := azblob.BlobHTTPHeaders{
+				ContentType: fileHeader.Header.Get("Content-Type"),
+			}
+			//Never expiring context
+			ctx := context.Background()
+			// Progress bar for commandline uploading file.
+			bar := progressbar.New(100)
 
-		// Upload to Azure Storage
-		credential, err := azblob.NewSharedKeyCredential(storageAccountName, storageAccountKey)
-		if err != nil {
-			fmt.Println(err)
-			return
+			// reset some values
+			uploadedBytes = 0
+			percentage = 0.0
+
+			// Upload with progress meter
+			_, err = blobURL.Upload(ctx, pipeline.NewRequestBodyProgress(file, func(bytesTransferred int64) {
+				uploadedBytes += bytesTransferred
+				//fmt.Println("Number of bytes transferred:", bytesTransferred)
+				//fmt.Println("Total uploaded bytes:", uploadedBytes)
+				percentage = (float64(bytesTransferred) / float64(fileSize)) * 100
+				//Set The Progress
+				//data.Progress = int(percentage)
+				// Update progress Console Progress Bar
+				bar.Set(int(percentage))
+				//tmpl.Execute(w, data)
+				//fmt.Fprintf(w, `Progres(%d);`, int(percentage))
+				//log.Print("Percentage : ", percentage)
+				//fmt.Fprint(w, "<script>updateProgressBar(progressBar,%s)</script>", int(percentage))
+				// Run function to update progress
+				//updateProgress(w, int(percentage))
+			}),
+				blobHTTPHeaders,
+				azblob.Metadata{},
+				azblob.BlobAccessConditions{},
+				azblob.DefaultAccessTier,
+				nil,
+				azblob.ClientProvidedKeyOptions{},
+				azblob.ImmutabilityPolicyOptions{},
+			)
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+			//fmt.Println("Uploaded")
+			bar.State()
+			/*
+				// Execute the template with the updated data, which includes the progress script
+				err = tmpl.Execute(w, data)
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
+			*/
+			// Generate SAS URI with read-only access
+			sasURL := blobURL.URL()
+			permissions := azblob.BlobSASPermissions{
+				Read: true,
+			}
+			expiryTime := time.Now().UTC().Add(14 * 24 * time.Hour)
+			sasQueryParams, err := azblob.BlobSASSignatureValues{
+				Protocol:      azblob.SASProtocolHTTPS,
+				Permissions:   permissions.String(),
+				ExpiryTime:    expiryTime,
+				ContainerName: storageContainer,
+				BlobName:      fileName,
+			}.NewSASQueryParameters(credential)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+			sasToken := sasQueryParams.Encode()
+			// Encoded query values withou ?
+			sasURL.RawQuery = sasToken
+			// Add SAS query values to the URL
+			urlToSendToSomeone := fmt.Sprintf("https://%s.blob.core.windows.net/%s/%s?%s",
+				storageAccountName, storageContainer, fileName, sasToken)
+			// At this point, you can send the urlToSendToSomeone to someone via email or any other mechanism you choose.
+			// Return SAS URI to HTML page as a link
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			fmt.Fprintf(w, "<h3>File uploaded successfully to Azure Blob Storage!</h3><br />")
+			fmt.Fprintf(w, "<a href=\"#\" onclick=\"copyToClipboard('%s')\">Copy Download Link to Clipboard</a><br />", urlToSendToSomeone)
+			fmt.Fprintf(w, "<a href=\"%s\" target=\"_blank\">Download File (Link will be valid for 14 Days!)</a><br />", urlToSendToSomeone)
 		}
-		p := azblob.NewPipeline(credential, azblob.PipelineOptions{})
-		URL, _ := url.Parse(fmt.Sprintf("https://%s.blob.core.windows.net/%s", storageAccountName, storageContainer))
-		containerURL := azblob.NewContainerURL(*URL, p)
-		blobURL := containerURL.NewBlockBlobURL(handler.Filename)
-		blobHTTPHeaders := azblob.BlobHTTPHeaders{
-			ContentType: handler.Header.Get("Content-Type"),
-		}
-		//Never expiring context
-		ctx := context.Background()
-		// Progress bar for commandline uploading file.
-		bar := progressbar.New(100)
-
-		// reset some values
-		uploadedBytes = 0
-		percentage = 0.0
-
-		// Upload with progress meter
-		_, err = blobURL.Upload(ctx, pipeline.NewRequestBodyProgress(file, func(bytesTransferred int64) {
-			uploadedBytes += bytesTransferred
-			//fmt.Println("Number of bytes transferred:", bytesTransferred)
-			//fmt.Println("Total uploaded bytes:", uploadedBytes)
-			percentage = (float64(bytesTransferred) / float64(fileSize)) * 100
-
-			//Set The Progress
-			data.Progress = int(percentage)
-
-			// Update progress Console Progress Bar
-			bar.Set(int(percentage))
-			//tmpl.Execute(w, data)
-			//fmt.Fprintf(w, `Progres(%d);`, int(percentage))
-			//log.Print("Percentage : ", percentage)
-			//fmt.Fprint(w, "<script>updateProgressBar(progressBar,%s)</script>", int(percentage))
-			// Run function to update progress
-			//updateProgress(w, int(percentage))
-		}),
-			blobHTTPHeaders,
-			azblob.Metadata{},
-			azblob.BlobAccessConditions{},
-			azblob.DefaultAccessTier,
-			nil,
-			azblob.ClientProvidedKeyOptions{},
-			azblob.ImmutabilityPolicyOptions{},
-		)
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-
-		// Execute the template with the updated data, which includes the progress script
-		err = tmpl.Execute(w, data)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		// Generate SAS URI with read-only access
-		sasURL := blobURL.URL()
-		permissions := azblob.BlobSASPermissions{
-			Read: true,
-		}
-		expiryTime := time.Now().UTC().Add(14 * 24 * time.Hour)
-
-		sasQueryParams, err := azblob.BlobSASSignatureValues{
-			Protocol:      azblob.SASProtocolHTTPS,
-			Permissions:   permissions.String(),
-			ExpiryTime:    expiryTime,
-			ContainerName: storageContainer,
-			BlobName:      fileName,
-		}.NewSASQueryParameters(credential)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
-		sasToken := sasQueryParams.Encode()
-		// Encoded query values withou ?
-		sasURL.RawQuery = sasToken
-
-		urlToSendToSomeone := fmt.Sprintf("https://%s.blob.core.windows.net/%s/%s?%s",
-			storageAccountName, storageContainer, fileName, sasToken)
-		// At this point, you can send the urlToSendToSomeone to someone via email or any other mechanism you choose.
-		// Return SAS URI to HTML page as a link
-		fmt.Fprintf(w, "<h3>File uploaded successfully to Azure Blob Storage!</h3><br />")
-		fmt.Fprintf(w, "<a href=\"#\" onclick=\"copyToClipboard('%s')\">Copy Download Link to Clipboard</a><br />", urlToSendToSomeone)
-		fmt.Fprintf(w, "<a href=\"%s\" target=\"_blank\">Download File (Link will be valid for 14 Days!)</a><br />", urlToSendToSomeone)
-	default:
-		fmt.Fprintf(w, "Sorry, only GET and POST methods are supported.")
 	}
+
 }
 
 /*
