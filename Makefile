@@ -1,13 +1,13 @@
 # Make variables
 APP=go-blob
-VERSION=0.0.9
+VERSION=0.1.0
 BUILD_TIME=$(shell date -u +%Y-%m-%dT%H:%M:%S.%NZ)
 DOCKER_ORG=mytestorg
 
 # Docker image variables
 IMAGE=$(DOCKER_ORG)/$(APP)
 TAG=$(VERSION)
-REGISTRY=registry.example.com
+REGISTRY=hub.docker.com
 
 # Golang binary variables
 CGO_ENABLED=0
