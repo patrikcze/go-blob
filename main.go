@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"log"
@@ -28,7 +29,7 @@ var (
 	storageContainer   string
 	data               TemplateData
 	uploadedBytes      int64
-	percentage         float64
+	percentage         = 0.0
 )
 
 const (
@@ -68,7 +69,7 @@ func main() {
 	// Create a file server
 	http.HandleFunc("/", handleGet)
 	http.HandleFunc("/upload", handlePost)
-
+	http.HandleFunc("/progress", progressHandler)
 	// Start the server
 	fmt.Println("Starting server on port 9000...")
 	if err := http.ListenAndServe(":9000", nil); err != nil {
@@ -179,7 +180,7 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 
 			// Reset some values
 			uploadedBytes := int64(0)
-			percentage := float64(0)
+			percentage = float64(0.0)
 
 			// Upload with progress meter
 			_, err = blobURL.Upload(ctx, pipeline.NewRequestBodyProgress(file, func(bytesTransferred int64) {
@@ -240,11 +241,21 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprintf(w, "<h3>File uploaded successfully to Azure Blob Storage!</h3><br />")
 			fmt.Fprintf(w, "<a href=\"#\" onclick=\"copyToClipboard('%s')\">Copy Download Link to Clipboard</a><br />", urlToSendToSomeone)
 			fmt.Fprintf(w, "<a href=\"%s\" target=\"_blank\">Download File (Link will be valid for 1 Day!)</a><br />", urlToSendToSomeone)
-
+			//reset percentage:
+			percentage = float64(0.0)
 		}
 
 	}
 
+}
+
+func progressHandler(w http.ResponseWriter, r *http.Request) {
+	// Calculate the progress percentage (assumes the progress is stored in a global variable)
+	progressPercentage := int(percentage)
+
+	// Return the progress percentage as a JSON object
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(struct{ Progress int }{progressPercentage})
 }
 
 /*

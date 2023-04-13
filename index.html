@@ -80,6 +80,33 @@
             margin-left: 10px;
             font-weight: bold;
         }
+
+        .azprogress {
+            height: 20px;
+            margin-bottom: 20px;
+            overflow: hidden;
+            background-color: #f5f5f5;
+            border-radius: 4px;
+            -webkit-box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1);
+            box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1);
+          }
+          
+          .azprogress-bar {
+            float: left;
+            width: 0;
+            height: 100%;
+            font-size: 12px;
+            line-height: 20px;
+            color: #fff;
+            text-align: center;
+            background-color: #337ab7;
+            -webkit-box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.15);
+            box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.15);
+            -webkit-transition: width 0.6s ease;
+            -o-transition: width 0.6s ease;
+            transition: width 0.6s ease;
+          }
+          
     </style>
 </head>
 
@@ -91,12 +118,16 @@
 
         <form id="uploadForm" class="upload-form">
             <label for="myFile">Broswe File:</label><input id="myFile" type="file" name="myFile" /><br />
-            <input class="button" type="submit" value="Upload"><br /><br />
+            <input id="submitButton" class="button" type="submit" value="Upload"><br /><br />
         </form>
         <div class="progress-bar" id="progressBar">
             <div class="progress-bar-fill">
                 <span class="progress-bar-text">0%</span>
             </div>
+        </div>
+        
+        <div class="azprogress">
+            <div class="azprogress-bar" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
         </div>
         <div id="response"></div>
         <script>
@@ -105,28 +136,28 @@
             const progressBarFill = document.querySelector("#progressBar > .progress-bar-fill");
             const progressBarText = progressBarFill.querySelector(".progress-bar-text");
             const responseDiv = document.getElementById("response");
-        
+
             // Change the event listener to listen for the "submit" event on the form, not the "click" event on the submit button
             uploadForm.addEventListener('submit', (event) => {
                 event.preventDefault(); // Prevent the form from submitting normally and refreshing the page
-        
+
                 // Get the selected file from the file input
                 const file = fileInput.files[0];
                 if (!file) {
                     alert("Please select a file to upload.");
                     return;
                 }
-        
+
                 // Create a new FormData object and append the file to it
                 const formData = new FormData();
                 formData.append('myFile', file);
-        
+
                 // Create a new XMLHttpRequest object to send the file via AJAX
                 const xhr = new XMLHttpRequest();
-        
+
                 // Set up a progress listener to update the progress bar as the file uploads
                 xhr.upload.addEventListener("progress", updateProgressBar);
-                
+
                 // Set up a listener to handle the server's response
                 xhr.onload = function () {
                     if (xhr.status === 200) {
@@ -143,18 +174,62 @@
                 // Open the connection to the server and send the file
                 xhr.open("POST", "/upload");
                 xhr.send(formData);
-        
+
             });
-        
+
             function updateProgressBar(progressEvent) {
                 const percent = progressEvent.lengthComputable ? (progressEvent.loaded / progressEvent.total) * 100 : 0;
-        
+
                 progressBarFill.style.width = percent.toFixed(2) + "%";
                 progressBarText.textContent = percent.toFixed(2) + "%";
                 console.log(progressEvent);
             }
-        
+
         </script>
+
+        <!-- jQuery and AJAX library -->
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+        <!-- JavaScript code to update the progress bar using AJAX -->
+        <script>
+            $(document).ready(function() {
+              var clicked = false;
+              var intervalId;
+            
+              // When the input submit button is clicked, set the flag to true
+              $('#submitButton').click(function() {
+                clicked = true;
+              });
+            
+              // Send an AJAX request to the server every second to update the progress bar
+              intervalId = setInterval(function() {
+                // Only update the progress bar if the input submit button has been clicked
+                if (clicked) {
+                  $.ajax({
+                    type: 'GET',
+                    url: '/progress',
+                    dataType: 'json',
+                    success: function(data) {
+                      // Update the progress bar with the latest progress percentage
+                      var progressBar = $('.azprogress-bar');
+                      var percentage = parseInt(data.Progress);
+                      progressBar.css('width', percentage + '%');
+                      progressBar.attr('aria-valuenow', percentage);
+                      progressBar.text(percentage + '%');
+                      if (percentage >= 100) {
+                        // Stop the interval if progress reaches 100
+                        clearInterval(intervalId);
+                      }
+                    },
+                    error: function(xhr, status, error) {
+                      console.log('Error: ' + error);
+                    }
+                  });
+                }
+              }, 1000);
+            });
+            </script>
+            
+
     </center>
 </body>
 
