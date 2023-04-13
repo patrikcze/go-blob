@@ -16,9 +16,13 @@ It can be used temporarily with `random` storage account. Quickly upload large f
 Webpage should be located to : [http://localhost:9000/](http://localhost:9000/)
 
 
-![Tux, the Linux mascot](/images/goblob_uploader.png)
+![](/images/upload_completed.png)
 
 [Screenshot](/images/goblob_uploader.png "Just an basic view of webform.")
+
+
+![](/images/upload_progress.png)
+
 
 ## How to Use
 1. Setup `environment` variables. (Could be on your computer or you can get them from KeyVault on K8S)
