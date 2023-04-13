@@ -3,7 +3,7 @@
 This is just small project to write simple API to upload files to specific Azure Storage account and Container.  For this purpose simple `Web Form` will be used. This WebForm consist of Browse and Upload botton.
 You just need to pick up file from your drive and it will simply upload it to `predefined` Storage in Azure. 
 
-At the end it will provide you new `SAS URI` which can be shared. URI has limited validity (`14 Days`).
+At the end it will provide you new `SAS URI` which can be shared. URI has limited validity (`1 Day`).
 
 **Possible usecase**
 You could run this `GO binary` in container.

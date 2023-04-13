@@ -77,100 +77,116 @@ func main() {
 }
 
 func handleGet(w http.ResponseWriter, r *http.Request) {
+	log.Printf("Handling GET request from %s", r.RemoteAddr)
 	if r.Method != http.MethodGet {
+		log.Printf("Method not allowed: %s", r.Method)
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+
 	// Parse the HTML template
+	log.Print("Parsing HTML template...")
 	tmpl, err := template.ParseFiles("index.html")
 	if err != nil {
+		log.Printf("Error parsing HTML template: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	// Initialize the template data with an empty progress script
-	data = TemplateData{
+	log.Print("Initializing template data...")
+	data := TemplateData{
 		//ProgressScript: "",
 		Progress: 0,
 	}
+
+	// Execute the template
+	log.Print("Executing template...")
 	err = tmpl.Execute(w, data)
 	if err != nil {
+		log.Printf("Error executing template: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	log.Print("GET request successfully handled")
 }
+
 func handlePost(w http.ResponseWriter, r *http.Request) {
+	// Check if the method is POST
 	if r.Method != http.MethodPost {
 		log.Printf("Method not allowed!")
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+
 	// Set buffer size to 512 MB
 	const maxRequestSize = 512 * 1024 * 1024
+
 	// Limit the size of the request body to prevent denial of service attacks
 	r.Body = http.MaxBytesReader(w, r.Body, maxRequestSize)
 
-	// Handle the file upload
+	// Parse multipart form
 	if err := r.ParseMultipartForm(maxRequestSize); err != nil {
-		log.Println(err.Error())
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		log.Printf("Error parsing multipart form: %v\n", err)
+		http.Error(w, "Bad Request", http.StatusBadRequest)
 		return
 	}
 
 	// Process the uploaded files
 	for _, fileHeaders := range r.MultipartForm.File {
 		for _, fileHeader := range fileHeaders {
+			// Open the file
 			file, err := fileHeader.Open()
 			if err != nil {
-				log.Println(err.Error())
-				http.Error(w, err.Error(), http.StatusInternalServerError)
+				log.Printf("Error opening file %s: %v\n", fileHeader.Filename, err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 				return
 			}
 			defer file.Close()
-			fmt.Printf("\nReceived file: %+v\n", fileHeader.Filename)
+
 			// Get Filename and File size from input file
 			var fileSize int64 = fileHeader.Size
 			var fileName string = fileHeader.Filename
 
+			log.Printf("Received file: %s, size: %d\n", fileName, fileSize)
+
 			// Upload to Azure Storage
 			credential, err := azblob.NewSharedKeyCredential(storageAccountName, storageAccountKey)
 			if err != nil {
-				fmt.Println(err)
+				log.Printf("Error creating Azure Storage credentials: %v\n", err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 				return
 			}
+
 			p := azblob.NewPipeline(credential, azblob.PipelineOptions{})
-			URL, _ := url.Parse(fmt.Sprintf("https://%s.blob.core.windows.net/%s", storageAccountName, storageContainer))
+			URL, err := url.Parse(fmt.Sprintf("https://%s.blob.core.windows.net/%s", storageAccountName, storageContainer))
+			if err != nil {
+				log.Printf("Error parsing Azure Storage URL: %v\n", err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				return
+			}
+
 			containerURL := azblob.NewContainerURL(*URL, p)
 			blobURL := containerURL.NewBlockBlobURL(fileHeader.Filename)
 			blobHTTPHeaders := azblob.BlobHTTPHeaders{
 				ContentType: fileHeader.Header.Get("Content-Type"),
 			}
-			//Never expiring context
+
+			// Set context and progress bar
 			ctx := context.Background()
-			// Progress bar for commandline uploading file.
 			bar := progressbar.New(100)
 
-			// reset some values
-			uploadedBytes = 0
-			percentage = 0.0
+			// Reset some values
+			uploadedBytes := int64(0)
+			percentage := float64(0)
 
 			// Upload with progress meter
 			_, err = blobURL.Upload(ctx, pipeline.NewRequestBodyProgress(file, func(bytesTransferred int64) {
 				uploadedBytes += bytesTransferred
-				//fmt.Println("Number of bytes transferred:", bytesTransferred)
-				//fmt.Println("Total uploaded bytes:", uploadedBytes)
 				percentage = (float64(bytesTransferred) / float64(fileSize)) * 100
-				//Set The Progress
-				//data.Progress = int(percentage)
-				// Update progress Console Progress Bar
 				bar.Set(int(percentage))
-
-				//tmpl.Execute(w, data)
-				//fmt.Fprintf(w, `Progres(%d);`, int(percentage))
-				//log.Print("Percentage : ", percentage)
-				//fmt.Fprint(w, "<script>updateProgressBar(progressBar,%s)</script>", int(percentage))
-				// Run function to update progress
-				//updateProgress(w, int(percentage))
+				log.Printf("Uploaded %d bytes of %d (%.2f%%)", bytesTransferred, fileSize, percentage)
 			}),
 				blobHTTPHeaders,
 				azblob.Metadata{},
@@ -181,10 +197,10 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 				azblob.ImmutabilityPolicyOptions{},
 			)
 			if err != nil {
-				log.Println(err)
+				log.Printf("Error uploading file %s to Azure Storage: %v\n", fileHeader.Filename, err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 				return
 			}
-
 			/*
 				// Execute the template with the updated data, which includes the progress script
 				err = tmpl.Execute(w, data)
@@ -198,7 +214,7 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 			permissions := azblob.BlobSASPermissions{
 				Read: true,
 			}
-			expiryTime := time.Now().UTC().Add(14 * 24 * time.Hour)
+			expiryTime := time.Now().UTC().Add(1 * 24 * time.Hour)
 			sasQueryParams, err := azblob.BlobSASSignatureValues{
 				Protocol:      azblob.SASProtocolHTTPS,
 				Permissions:   permissions.String(),
@@ -207,7 +223,9 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 				BlobName:      fileName,
 			}.NewSASQueryParameters(credential)
 			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
+				log.Printf("Error generating SAS query parameters: %v", err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				return
 			}
 			sasToken := sasQueryParams.Encode()
 			// Encoded query values withou ?
@@ -218,9 +236,10 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 			// At this point, you can send the urlToSendToSomeone to someone via email or any other mechanism you choose.
 			// Return SAS URI to HTML page as a link
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.WriteHeader(http.StatusOK)
 			fmt.Fprintf(w, "<h3>File uploaded successfully to Azure Blob Storage!</h3><br />")
 			fmt.Fprintf(w, "<a href=\"#\" onclick=\"copyToClipboard('%s')\">Copy Download Link to Clipboard</a><br />", urlToSendToSomeone)
-			fmt.Fprintf(w, "<a href=\"%s\" target=\"_blank\">Download File (Link will be valid for 14 Days!)</a><br />", urlToSendToSomeone)
+			fmt.Fprintf(w, "<a href=\"%s\" target=\"_blank\">Download File (Link will be valid for 1 Day!)</a><br />", urlToSendToSomeone)
 
 		}
 
