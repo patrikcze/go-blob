@@ -35,6 +35,10 @@ make docker-build
 ```bash
 make start
 ```
+
+![](https://github.com/patrikcze/go-blob/blob/a9ee0074905f4f897ac0dc9a1bbe7ea2ea301d24/images/build_binary.gif)
+
+
 5. To `clean` build run.
 ```bash
 make cleanup #Will delete release/ folder
