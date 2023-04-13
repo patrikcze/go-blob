@@ -27,6 +27,10 @@ Webpage should be located to : [http://localhost:9000/](http://localhost:9000/)
 make build-app
 ./release/go-blob 
 ```
+
+![](images/build_binary.gif)
+
+
 3. To `build container image` execute :
 ```bash
 make docker-build
@@ -36,7 +40,7 @@ make docker-build
 make start
 ```
 
-![](https://github.com/patrikcze/go-blob/blob/a9ee0074905f4f897ac0dc9a1bbe7ea2ea301d24/images/build_binary.gif)
+![](images/build_docker.gif)
 
 
 5. To `clean` build run.
