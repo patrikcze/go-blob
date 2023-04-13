@@ -149,6 +149,13 @@
             uploadForm.addEventListener('submit', (event) => {
                 event.preventDefault(); // Prevent the form from submitting normally and refreshing the page
 
+                const maxFileSize = 512 * 1024 * 1024; // 1 GB
+                if (fileInput.files[0].size > maxFileSize) {
+                    alert("File size is too large. Please select a file that is smaller than 512 MB.");
+                    this.value = "";
+                    
+                }
+
                 // Get the selected file from the file input
                 const file = fileInput.files[0];
                 if (!file) {
@@ -222,7 +229,7 @@
                       var percentage = parseInt(data.Progress);
                       progressBar.css('width', percentage + '%');
                       progressBar.attr('aria-valuenow', percentage);
-                      progressBar.text('Blob Upload ' + percentage + '%');
+                      progressBar.text('Upload ' + percentage + '%');
                       if (percentage >= 100) {
                         // Stop the interval if progress reaches 100
                         clearInterval(intervalId);

@@ -129,6 +129,11 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 
 	// Parse multipart form
 	if err := r.ParseMultipartForm(maxRequestSize); err != nil {
+		if err.Error() == "http: request body too large" {
+			log.Printf("File size limit exceeded %v", err)
+			http.Error(w, "File size limit exceeded", http.StatusBadRequest)
+			return
+		}
 		log.Printf("Error parsing multipart form: %v\n", err)
 		http.Error(w, "Bad Request", http.StatusBadRequest)
 		return
