@@ -13,7 +13,11 @@ It can be used temporarily with `random` storage account. Quickly upload large f
 
 `main.go` is main function of whole project. 
 
+Webpage should be located to : [http://localhost:9000/](http://localhost:9000/)
+
+
 ![Tux, the Linux mascot](/images/goblob_uploader.png)
+
 [Screenshot](/images/goblob_uploader.png "Just an basic view of webform.")
 
 ## How to Use
