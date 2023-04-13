@@ -49,6 +49,22 @@ make cleanup #Will delete release/ folder
 make delete #Will remove docker image
 ```
 
+## Docker Registry
+
+To pull built image from docker registry you can try 
+
+```bash
+docker pull patrikcze/go-blob:0.1.2
+```
+
+Following architectures have been published. 
+
+- `linux/amd64`
+- `linux/arm/v7`
+- `linux/arm64`
+
+Compressed size approx : `351 MB`
+
 
 ## Requirements 
 
