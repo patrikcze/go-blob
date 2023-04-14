@@ -10,12 +10,12 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"net/url"
 	"os"
 	"time"
 
 	//"github.com/Azure/azure-pipeline-go/pipeline"
 	"github.com/Azure/azure-pipeline-go/pipeline"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 
 	//"github.com/Azure/azure-storage-blob-go/azblob"
@@ -161,9 +161,25 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 			var fileSize int64 = fileHeader.Size
 			var fileName string = fileHeader.Filename
 			log.Printf("Received file: %s, size: %d\n", fileName, fileSize)
-			URL, err := url.Parse(fmt.Sprintf("https://%s.blob.core.windows.net/%s", storageAccountName, storageContainer))
-			client, err := azblob.NewClient("https://MYSTORAGEACCOUNT.blob.core.windows.net/", cred, nil)
 
+			//#######################################
+			// Azure SDK
+			//#######################################
+			// create a credential for authenticating with Azure Active Directory
+			cred, err := azidentity.NewDefaultAzureCredential(nil)
+			if err != nil {
+				// handle error
+			}
+			// TODO: replace <storage-account-name> with your actual storage account name
+			ctx := context.Background()
+			url := fmt.Sprintf("https://%s.blob.core.windows.net/%s", storageAccountName, storageContainer)
+
+			client, err := azblob.NewClient(url, cred, nil)
+			if err != nil {
+				log.Printf("Error creating Azure Storage client: %v\n", err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				return
+			}
 			// Upload to Azure Storage
 			credential, err := azblob.NewSharedKeyCredential(storageAccountName, storageAccountKey)
 			if err != nil {
@@ -339,6 +355,12 @@ func uploadToBlobUsingStream(ctx context.Context, fileName string, fileSize int6
 	}
 
 	return nil
+}
+
+func handleError(err error) {
+	if err != nil {
+		log.Fatal(err.Error())
+	}
 }
 
 /*
