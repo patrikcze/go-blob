@@ -14,6 +14,7 @@ import (
 	"os"
 	"time"
 
+	//"github.com/Azure/azure-pipeline-go/pipeline"
 	"github.com/Azure/azure-pipeline-go/pipeline"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 
@@ -159,8 +160,9 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 			// Get Filename and File size from input file
 			var fileSize int64 = fileHeader.Size
 			var fileName string = fileHeader.Filename
-
 			log.Printf("Received file: %s, size: %d\n", fileName, fileSize)
+			URL, err := url.Parse(fmt.Sprintf("https://%s.blob.core.windows.net/%s", storageAccountName, storageContainer))
+			client, err := azblob.NewClient("https://MYSTORAGEACCOUNT.blob.core.windows.net/", cred, nil)
 
 			// Upload to Azure Storage
 			credential, err := azblob.NewSharedKeyCredential(storageAccountName, storageAccountKey)
@@ -170,7 +172,7 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			p := azblob.NewPipeline(credential, azblob.PipelineOptions{})
+			p := azblob.NewClient().NewPipeline(credential, azblob.PipelineOptions{})
 			URL, err := url.Parse(fmt.Sprintf("https://%s.blob.core.windows.net/%s", storageAccountName, storageContainer))
 			if err != nil {
 				log.Printf("Error parsing Azure Storage URL: %v\n", err)
@@ -191,6 +193,27 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 			// Reset some values
 			uploadedBytes := int64(0)
 			percentage = float64(0.0)
+
+			// Upload the file to the block blob
+			_, err = azblob.clie.UploadStreamToBlockBlob(ctx, file, blobURL, azblob.UploadToBlockBlobOptions{
+				BufferSize: 4 * 1024 * 1024,
+				MaxBuffers: 3,
+				Metadata:   nil,
+				BlobHTTPHeaders: azblob.BlobHTTPHeaders{
+					ContentType: blobHTTPHeaders.ContentType,
+				},
+				Progress: func(bytesTransferred int64) {
+					// Update the progress percentage (stored in global variable)
+					uploadedBytes += bytesTransferred
+					percentage = (float64(uploadedBytes) / float64(fileSize)) * 100
+					log.Printf("Uploaded %d bytes of %d (%.2f%%)", uploadedBytes, fileSize, percentage)
+				},
+			})
+			if err != nil {
+				log.Printf("Error uploading file %s to Azure Storage: %v", fileHeader.Filename, err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				return
+			}
 
 			// Upload with progress meter
 			_, err = blobURL.Upload(ctx, pipeline.NewRequestBodyProgress(file, func(bytesTransferred int64) {
