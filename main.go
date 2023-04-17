@@ -17,6 +17,7 @@ import (
 	_ "github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/sas"
 	"github.com/schollz/progressbar/v3"
 	//"github.com/Azure/azure-storage-blob-go/azblob"
 )
@@ -222,18 +223,25 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 			// Report uploaded file
 			log.Printf("Uploaded %d bytes of %d (%.2f%%)", uploadedBytes, fileSize, percentage)
 			// Get SAS
-			srcClient := client.ServiceClient().NewContainerClient().NewBlockBlobClient(client.ServiceClient().URL())
-			srcClient.BlobClient().GetSASURL(
-				credential,
-				time.Now().UTC()+(4*time.Hour),
-
+			expiryTime := time.Now().UTC().Add(1 * 24 * time.Hour) // Set Expire time 24 hours
+			srcClient := client.ServiceClient().NewContainerClient(storageContainer).NewBlockBlobClient(client.ServiceClient().URL())
+			SAS, err := srcClient.BlobClient().GetSASURL(
+				sas.BlobPermissions{Read: true},
+				expiryTime,
 				&blob.GetSASURLOptions{},
 			)
+			if err != nil {
+				log.Printf("Error generating SAS : %v", err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				return
+			}
+
 			// Remove the file after upload is complete
 			defer os.Remove(osFile.Name())
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
 			w.WriteHeader(http.StatusOK)
 			fmt.Fprintf(w, "<h3>File uploaded successfully to Azure Blob Storage!</h3><br />")
+			fmt.Fprintf(w, "SAS: %s", SAS)
 
 		}
 
