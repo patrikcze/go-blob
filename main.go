@@ -1,9 +1,7 @@
 package main
 
 import (
-	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"html/template"
@@ -11,16 +9,12 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"time"
 
 	//"github.com/Azure/azure-pipeline-go/pipeline"
-	"github.com/Azure/azure-pipeline-go/pipeline"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+
+	_ "github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
-
 	//"github.com/Azure/azure-storage-blob-go/azblob"
-
-	"github.com/schollz/progressbar/v3"
 )
 
 // Define a struct to hold the template data
@@ -162,136 +156,71 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 			var fileName string = fileHeader.Filename
 			log.Printf("Received file: %s, size: %d\n", fileName, fileSize)
 
+			// Convert multipart.File to os.File
+			osFile, err := os.Create("temp/" + fileHeader.Filename)
+			if err != nil {
+				log.Printf("Error converting multi-part file %s: %v\n", fileHeader.Filename, err)
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			defer osFile.Close()
+			_, err = io.Copy(osFile, file)
+			if err != nil {
+				log.Printf("Error caching the file %s: %v\n", fileHeader.Filename, err)
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+
 			//#######################################
 			// Azure SDK
 			//#######################################
 			// create a credential for authenticating with Azure Active Directory
-			cred, err := azidentity.NewDefaultAzureCredential(nil)
-			if err != nil {
-				// handle error
-			}
-			// TODO: replace <storage-account-name> with your actual storage account name
-			ctx := context.Background()
-			url := fmt.Sprintf("https://%s.blob.core.windows.net/%s", storageAccountName, storageContainer)
-
-			client, err := azblob.NewClient(url, cred, nil)
-			if err != nil {
-				log.Printf("Error creating Azure Storage client: %v\n", err)
-				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-				return
-			}
 			// Upload to Azure Storage
 			credential, err := azblob.NewSharedKeyCredential(storageAccountName, storageAccountKey)
 			if err != nil {
-				log.Printf("Error creating Azure Storage credentials: %v\n", err)
+				log.Printf("Error creating Azure Storage credentials: %v", err)
 				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 				return
 			}
+			u := fmt.Sprintf("https://%s.blob.core.windows.net/", storageAccountName)
 
-			p := azblob.NewClient().NewPipeline(credential, azblob.PipelineOptions{})
-			URL, err := url.Parse(fmt.Sprintf("https://%s.blob.core.windows.net/%s", storageAccountName, storageContainer))
+			client, err := azblob.NewClientWithSharedKeyCredential(u, credential, &azblob.ClientOptions{})
 			if err != nil {
-				log.Printf("Error parsing Azure Storage URL: %v\n", err)
+				log.Printf("Error creating Azure Blob Client with Shared Key: %v", err)
 				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 				return
-			}
-
-			containerURL := azblob.NewContainerURL(*URL, p)
-			blobURL := containerURL.NewBlockBlobURL(fileHeader.Filename)
-			blobHTTPHeaders := azblob.BlobHTTPHeaders{
-				ContentType: fileHeader.Header.Get("Content-Type"),
 			}
 
 			// Set context and progress bar
 			ctx := context.Background()
-			bar := progressbar.New(100)
+			//bar := progressbar.New(100)
 
 			// Reset some values
-			uploadedBytes := int64(0)
+			//uploadedBytes := int64(0)
 			percentage = float64(0.0)
 
-			// Upload the file to the block blob
-			_, err = azblob.clie.UploadStreamToBlockBlob(ctx, file, blobURL, azblob.UploadToBlockBlobOptions{
-				BufferSize: 4 * 1024 * 1024,
-				MaxBuffers: 3,
-				Metadata:   nil,
-				BlobHTTPHeaders: azblob.BlobHTTPHeaders{
-					ContentType: blobHTTPHeaders.ContentType,
-				},
-				Progress: func(bytesTransferred int64) {
-					// Update the progress percentage (stored in global variable)
-					uploadedBytes += bytesTransferred
-					percentage = (float64(uploadedBytes) / float64(fileSize)) * 100
-					log.Printf("Uploaded %d bytes of %d (%.2f%%)", uploadedBytes, fileSize, percentage)
-				},
-			})
+			// Upload with progress meter using resumable upload
+			_, err = client.UploadFile(ctx, storageContainer, fileName, osFile,
+				&azblob.UploadFileOptions{
+					BlockSize: 4 * 1024 * 1024,
+					Progress: func(bytesTransferred int64) {
+						uploadedBytes = +bytesTransferred
+						percentage = (float64(bytesTransferred) / float64(fileSize)) * 100
+						//bar.Set(int(percentage))
+						log.Printf("Uploaded %d bytes of %d (%.2f%%)", uploadedBytes, fileSize, percentage)
+					},
+				})
 			if err != nil {
-				log.Printf("Error uploading file %s to Azure Storage: %v", fileHeader.Filename, err)
+				log.Printf("Error uploading file %s to Azure Storage: %v", fileName, err)
 				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 				return
 			}
-
-			// Upload with progress meter
-			_, err = blobURL.Upload(ctx, pipeline.NewRequestBodyProgress(file, func(bytesTransferred int64) {
-				uploadedBytes += bytesTransferred
-				percentage = (float64(bytesTransferred) / float64(fileSize)) * 100
-				bar.Set(int(percentage))
-				log.Printf("Uploaded %d bytes of %d (%.2f%%)", bytesTransferred, fileSize, percentage)
-			}),
-				blobHTTPHeaders,
-				azblob.Metadata{},
-				azblob.BlobAccessConditions{},
-				azblob.DefaultAccessTier,
-				nil,
-				azblob.ClientProvidedKeyOptions{},
-				azblob.ImmutabilityPolicyOptions{},
-			)
-			if err != nil {
-				log.Printf("Error uploading file %s to Azure Storage: %v\n", fileHeader.Filename, err)
-				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-				return
-			}
-			/*
-				// Execute the template with the updated data, which includes the progress script
-				err = tmpl.Execute(w, data)
-				if err != nil {
-					http.Error(w, err.Error(), http.StatusInternalServerError)
-					return
-				}
-			*/
-			// Generate SAS URI with read-only access
-			sasURL := blobURL.URL()
-			permissions := azblob.BlobSASPermissions{
-				Read: true,
-			}
-			expiryTime := time.Now().UTC().Add(1 * 24 * time.Hour)
-			sasQueryParams, err := azblob.BlobSASSignatureValues{
-				Protocol:      azblob.SASProtocolHTTPS,
-				Permissions:   permissions.String(),
-				ExpiryTime:    expiryTime,
-				ContainerName: storageContainer,
-				BlobName:      fileName,
-			}.NewSASQueryParameters(credential)
-			if err != nil {
-				log.Printf("Error generating SAS query parameters: %v", err)
-				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-				return
-			}
-			sasToken := sasQueryParams.Encode()
-			// Encoded query values withou ?
-			sasURL.RawQuery = sasToken
-			// Add SAS query values to the URL
-			urlToSendToSomeone := fmt.Sprintf("https://%s.blob.core.windows.net/%s/%s?%s",
-				storageAccountName, storageContainer, fileName, sasToken)
-			// At this point, you can send the urlToSendToSomeone to someone via email or any other mechanism you choose.
-			// Return SAS URI to HTML page as a link
+			// Remove the file after upload is complete
+			defer os.Remove(osFile.Name())
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
 			w.WriteHeader(http.StatusOK)
 			fmt.Fprintf(w, "<h3>File uploaded successfully to Azure Blob Storage!</h3><br />")
-			fmt.Fprintf(w, "<a href=\"#\" onclick=\"copyToClipboard('%s')\">Copy Download Link to Clipboard</a><br />", urlToSendToSomeone)
-			fmt.Fprintf(w, "<a href=\"%s\" target=\"_blank\">Download File (Link will be valid for 1 Day!)</a><br />", urlToSendToSomeone)
-			//reset percentage:
-			percentage = float64(0.0)
+
 		}
 
 	}
@@ -307,56 +236,58 @@ func progressHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(struct{ Progress int }{progressPercentage})
 }
 
+/*
 // Upload to Azure Storage using io.Copy and azblob.UploadStreamToBlockBlob
-func uploadToBlobUsingStream(ctx context.Context, fileName string, fileSize int64, containerURL azblob.ContainerURL, file io.Reader) error {
-	// Create a new block blob
-	blobURL := containerURL.NewBlockBlobURL(fileName)
 
-	// Set blob headers
-	blobHTTPHeaders := azblob.BlobHTTPHeaders{
-		ContentType: "application/octet-stream",
-	}
+	func uploadToBlobUsingStream(ctx context.Context, fileName string, fileSize int64, containerURL azblob.ContainerURL, file io.Reader) error {
+		// Create a new block blob
+		blobURL := containerURL.NewBlockBlobURL(fileName)
 
-	// Set block size to 4MB
-	blockSize := BlockBlobMaxStageBlockBytes / 1000
+		// Set blob headers
+		blobHTTPHeaders := azblob.BlobHTTPHeaders{
+			ContentType: "application/octet-stream",
+		}
 
-	// Create a transfer manager
-	transferManager := azblob.NewBlobTransferManager(blobURL, azblob.NewPipeline(azblob.NewAnonymousCredential(), azblob.PipelineOptions{}))
+		// Set block size to 4MB
+		blockSize := BlockBlobMaxStageBlockBytes / 1000
 
-	// Upload the file using io.Copy function
-	// Create a block blob
-	blockIDs := make([]string, 0, 0)
-	offset := int64(0)
-	buffer := make([]byte, blockSize)
-	for {
-		bytesRead, err := file.Read(buffer)
-		if err != nil {
-			if err != io.EOF {
-				return fmt.Errorf("failed to read %s: %v", fileName, err)
+		// Create a transfer manager
+		transferManager := azblob.NewBlobTransferManager(blobURL, azblob.NewPipeline(azblob.NewAnonymousCredential(), azblob.PipelineOptions{}))
+
+		// Upload the file using io.Copy function
+		// Create a block blob
+		blockIDs := make([]string, 0, 0)
+		offset := int64(0)
+		buffer := make([]byte, blockSize)
+		for {
+			bytesRead, err := file.Read(buffer)
+			if err != nil {
+				if err != io.EOF {
+					return fmt.Errorf("failed to read %s: %v", fileName, err)
+				}
+				break
 			}
-			break
+			reader := bytes.NewReader(buffer[:bytesRead])
+			blockID := base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%10d", offset/blockSize)))
+			log.Printf("Uploading block %s, size: %d bytes", blockID, bytesRead)
+			err = transferManager.UploadStreamToBlockBlob(ctx, reader, blockID, blobHTTPHeaders, azblob.Metadata{}, azblob.BlobAccessConditions{}, nil)
+			if err != nil {
+				return fmt.Errorf("failed to upload block %s: %v", blockID, err)
+			}
+			blockIDs = append(blockIDs, blockID)
+			offset += int64(bytesRead)
 		}
-		reader := bytes.NewReader(buffer[:bytesRead])
-		blockID := base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%10d", offset/blockSize)))
-		log.Printf("Uploading block %s, size: %d bytes", blockID, bytesRead)
-		err = transferManager.UploadStreamToBlockBlob(ctx, reader, blockID, blobHTTPHeaders, azblob.Metadata{}, azblob.BlobAccessConditions{}, nil)
+		log.Printf("All blocks uploaded. Finalizing block list.\n")
+
+		// Commit the blocks
+		_, err := blobURL.CommitBlockList(ctx, blockIDs, blobHTTPHeaders, azblob.Metadata{}, azblob.BlobAccessConditions{})
 		if err != nil {
-			return fmt.Errorf("failed to upload block %s: %v", blockID, err)
+			return fmt.Errorf("failed to commit block list: %v", err)
 		}
-		blockIDs = append(blockIDs, blockID)
-		offset += int64(bytesRead)
+
+		return nil
 	}
-	log.Printf("All blocks uploaded. Finalizing block list.\n")
-
-	// Commit the blocks
-	_, err := blobURL.CommitBlockList(ctx, blockIDs, blobHTTPHeaders, azblob.Metadata{}, azblob.BlobAccessConditions{})
-	if err != nil {
-		return fmt.Errorf("failed to commit block list: %v", err)
-	}
-
-	return nil
-}
-
+*/
 func handleError(err error) {
 	if err != nil {
 		log.Fatal(err.Error())
