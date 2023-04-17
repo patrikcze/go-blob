@@ -224,12 +224,18 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 			log.Printf("Uploaded %d bytes of %d (%.2f%%)", uploadedBytes, fileSize, percentage)
 			// Get SAS
 			expiryTime := time.Now().UTC().Add(1 * 24 * time.Hour) // Set Expire time 24 hours
-			srcClient := client.ServiceClient().NewContainerClient(storageContainer).NewBlockBlobClient(client.ServiceClient().URL())
+			// Setup SRC Client
+			srcClient := client.ServiceClient().
+				NewContainerClient(storageContainer).
+				NewBlockBlobClient(fileName)
+
+			// Generate SAS URL
 			SAS, err := srcClient.BlobClient().GetSASURL(
 				sas.BlobPermissions{Read: true},
 				expiryTime,
 				&blob.GetSASURLOptions{},
 			)
+
 			if err != nil {
 				log.Printf("Error generating SAS : %v", err)
 				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
