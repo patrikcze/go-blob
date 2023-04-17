@@ -14,6 +14,7 @@ import (
 
 	_ "github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
+	"github.com/schollz/progressbar/v2"
 	//"github.com/Azure/azure-storage-blob-go/azblob"
 )
 
@@ -193,7 +194,7 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 
 			// Set context and progress bar
 			ctx := context.Background()
-			//bar := progressbar.New(100)
+			bar := progressbar.New(100)
 
 			// Reset some values
 			//uploadedBytes := int64(0)
@@ -206,7 +207,7 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 					Progress: func(bytesTransferred int64) {
 						uploadedBytes = +bytesTransferred
 						percentage = (float64(bytesTransferred) / float64(fileSize)) * 100
-						//bar.Set(int(percentage))
+						bar.Set(int(percentage))
 						log.Printf("Uploaded %d bytes of %d (%.2f%%)", uploadedBytes, fileSize, percentage)
 					},
 				})

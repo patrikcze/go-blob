@@ -19,6 +19,7 @@ require (
 
 require (
 	github.com/google/uuid v1.3.0 // indirect
+	github.com/schollz/progressbar v1.0.0 // indirect
 	golang.org/x/net v0.7.0 // indirect
 	golang.org/x/sys v0.7.0 // indirect
 	golang.org/x/text v0.7.0 // indirect
