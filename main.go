@@ -9,12 +9,15 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	//"github.com/Azure/azure-pipeline-go/pipeline"
 
+	_ "github.com/Azure/azure-sdk-for-go/sdk/azcore/streaming"
 	_ "github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
-	"github.com/schollz/progressbar/v2"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
+	"github.com/schollz/progressbar/v3"
 	//"github.com/Azure/azure-storage-blob-go/azblob"
 )
 
@@ -208,7 +211,7 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 						uploadedBytes = +bytesTransferred
 						percentage = (float64(bytesTransferred) / float64(fileSize)) * 100
 						bar.Set(int(percentage))
-						log.Printf("Uploaded %d bytes of %d (%.2f%%)", uploadedBytes, fileSize, percentage)
+						//log.Printf("Uploaded %d bytes of %d (%.2f%%)", uploadedBytes, fileSize, percentage)
 					},
 				})
 			if err != nil {
@@ -216,6 +219,16 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 				return
 			}
+			// Report uploaded file
+			log.Printf("Uploaded %d bytes of %d (%.2f%%)", uploadedBytes, fileSize, percentage)
+			// Get SAS
+			srcClient := client.ServiceClient().NewContainerClient().NewBlockBlobClient(client.ServiceClient().URL())
+			srcClient.BlobClient().GetSASURL(
+				credential,
+				time.Now().UTC()+(4*time.Hour),
+
+				&blob.GetSASURLOptions{},
+			)
 			// Remove the file after upload is complete
 			defer os.Remove(osFile.Name())
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -236,79 +249,3 @@ func progressHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(struct{ Progress int }{progressPercentage})
 }
-
-/*
-// Upload to Azure Storage using io.Copy and azblob.UploadStreamToBlockBlob
-
-	func uploadToBlobUsingStream(ctx context.Context, fileName string, fileSize int64, containerURL azblob.ContainerURL, file io.Reader) error {
-		// Create a new block blob
-		blobURL := containerURL.NewBlockBlobURL(fileName)
-
-		// Set blob headers
-		blobHTTPHeaders := azblob.BlobHTTPHeaders{
-			ContentType: "application/octet-stream",
-		}
-
-		// Set block size to 4MB
-		blockSize := BlockBlobMaxStageBlockBytes / 1000
-
-		// Create a transfer manager
-		transferManager := azblob.NewBlobTransferManager(blobURL, azblob.NewPipeline(azblob.NewAnonymousCredential(), azblob.PipelineOptions{}))
-
-		// Upload the file using io.Copy function
-		// Create a block blob
-		blockIDs := make([]string, 0, 0)
-		offset := int64(0)
-		buffer := make([]byte, blockSize)
-		for {
-			bytesRead, err := file.Read(buffer)
-			if err != nil {
-				if err != io.EOF {
-					return fmt.Errorf("failed to read %s: %v", fileName, err)
-				}
-				break
-			}
-			reader := bytes.NewReader(buffer[:bytesRead])
-			blockID := base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%10d", offset/blockSize)))
-			log.Printf("Uploading block %s, size: %d bytes", blockID, bytesRead)
-			err = transferManager.UploadStreamToBlockBlob(ctx, reader, blockID, blobHTTPHeaders, azblob.Metadata{}, azblob.BlobAccessConditions{}, nil)
-			if err != nil {
-				return fmt.Errorf("failed to upload block %s: %v", blockID, err)
-			}
-			blockIDs = append(blockIDs, blockID)
-			offset += int64(bytesRead)
-		}
-		log.Printf("All blocks uploaded. Finalizing block list.\n")
-
-		// Commit the blocks
-		_, err := blobURL.CommitBlockList(ctx, blockIDs, blobHTTPHeaders, azblob.Metadata{}, azblob.BlobAccessConditions{})
-		if err != nil {
-			return fmt.Errorf("failed to commit block list: %v", err)
-		}
-
-		return nil
-	}
-*/
-func handleError(err error) {
-	if err != nil {
-		log.Fatal(err.Error())
-	}
-}
-
-/*
-Function returns the percentage of Blob upload progress.
-perc (int): The calculated progress as a percentage.
-*/
-/* func progressUpdate(w http.ResponseWriter, perc int) {
-	w.Header().Set("Content-Type", "text/javascript")
-	fmt.Fprintf(w, "<script>updateProgressBar</script>")
-}
-*/
-/*
-func updateProgress(w http.ResponseWriter, percentage int) {
-	// Progress format Javascript script update progress and counter
-	progress := fmt.Sprintf(`<script language="JavaScript" type="text/javascript">uploadForm.querySelector('.result').textContent = '%d%%'; </script>`, percentage)
-	w.Header().Set("Content-Type", "text/html")
-	fmt.Fprint(w, progress)
-}
-*/
