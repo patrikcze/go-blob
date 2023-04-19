@@ -11,15 +11,12 @@ import (
 	"os"
 	"time"
 
-	//"github.com/Azure/azure-pipeline-go/pipeline"
-
 	_ "github.com/Azure/azure-sdk-for-go/sdk/azcore/streaming"
 	_ "github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/sas"
 	"github.com/schollz/progressbar/v3"
-	//"github.com/Azure/azure-storage-blob-go/azblob"
 )
 
 // Define a struct to hold the template data
@@ -226,7 +223,7 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 			expiryTime := time.Now().UTC().Add(1 * 24 * time.Hour) // Set Expire time 24 hours
 			startTime := time.Now().UTC()
 			// Setup Client
-			// Generate SAS URL
+			// Generate SAS URL for uploaded file
 			s, err := client.ServiceClient().
 				NewContainerClient(storageContainer).
 				NewBlobClient(fileName).
