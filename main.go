@@ -244,17 +244,17 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 
 			// Remove the file after upload is complete
 			defer os.Remove(osFile.Name())
-			defer w.(http.Flusher).Flush() // Release the responsewriter before exiting the function
+
 			// Setup Response header and return SAS URL Links
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.WriteHeader(http.StatusOK)
 			fmt.Fprintf(w, "<h3>File uploaded %s successfully to Azure Blob Storage!</h3><br />", fileName)
 			fmt.Fprintf(w, "<a href=\"#\" onclick=\"copyToClipboard('%s')\">Copy Download Link to Clipboard</a><br />", s)
 			fmt.Fprintf(w, "<a href=\"%s\" target=\"_blank\">Download File (Link will be valid for 1 Day!)</a><br />", s)
-			w.WriteHeader(http.StatusOK)
 		}
 
 	}
-
+	defer w.(http.Flusher).Flush() // Release the responsewriter before exiting the function
 }
 
 func progressHandler(w http.ResponseWriter, r *http.Request) {
