@@ -35,6 +35,9 @@ var (
 )
 
 const (
+	// Set buffer size to 512 MB
+	maxRequestSize = 512 * 1024 * 1024
+
 	// BlockBlobMaxUploadBlobBytes indicates the maximum number of bytes that can be sent in a call to Upload.
 	BlockBlobMaxUploadBlobBytes = 256 * 1024 * 1024 // 256MB
 
@@ -98,7 +101,7 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 
 	// Initialize the template data with an empty progress script
 	log.Print("Initializing template data...")
-	data := TemplateData{
+	data = TemplateData{
 		//ProgressScript: "",
 		Progress: 0,
 	}
@@ -113,6 +116,7 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Print("GET request successfully handled")
+	defer w.(http.Flusher).Flush() // Release the responsewriter before exiting the function
 }
 
 func handlePost(w http.ResponseWriter, r *http.Request) {
@@ -122,9 +126,6 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-
-	// Set buffer size to 512 MB
-	const maxRequestSize = 512 * 1024 * 1024
 
 	// Limit the size of the request body to prevent denial of service attacks
 	r.Body = http.MaxBytesReader(w, r.Body, maxRequestSize)
@@ -185,7 +186,7 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			u := fmt.Sprintf("https://%s.blob.core.windows.net/", storageAccountName)
-
+			// Create new client for AzBlob with Shared Key Credentials
 			client, err := azblob.NewClientWithSharedKeyCredential(u, credential, &azblob.ClientOptions{})
 			if err != nil {
 				log.Printf("Error creating Azure Blob Client with Shared Key: %v", err)
@@ -243,13 +244,13 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 
 			// Remove the file after upload is complete
 			defer os.Remove(osFile.Name())
+			defer w.(http.Flusher).Flush() // Release the responsewriter before exiting the function
 			// Setup Response header and return SAS URL Links
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
-			w.WriteHeader(http.StatusOK)
 			fmt.Fprintf(w, "<h3>File uploaded %s successfully to Azure Blob Storage!</h3><br />", fileName)
 			fmt.Fprintf(w, "<a href=\"#\" onclick=\"copyToClipboard('%s')\">Copy Download Link to Clipboard</a><br />", s)
 			fmt.Fprintf(w, "<a href=\"%s\" target=\"_blank\">Download File (Link will be valid for 1 Day!)</a><br />", s)
-
+			w.WriteHeader(http.StatusOK)
 		}
 
 	}
@@ -259,7 +260,7 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 func progressHandler(w http.ResponseWriter, r *http.Request) {
 	// Calculate the progress percentage (assumes the progress is stored in a global variable)
 	progressPercentage := int(percentage)
-
+	defer w.(http.Flusher).Flush() // Release the responsewriter before exiting the function
 	// Return the progress percentage as a JSON object
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(struct{ Progress int }{progressPercentage})
