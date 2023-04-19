@@ -128,7 +128,7 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 
 	// Limit the size of the request body to prevent denial of service attacks
 	r.Body = http.MaxBytesReader(w, r.Body, maxRequestSize)
-
+	log.Printf("Setting buffer size to : %v (bytes)", maxRequestSize)
 	// Parse multipart form
 	if err := r.ParseMultipartForm(maxRequestSize); err != nil {
 		if err.Error() == "http: request body too large" {
@@ -243,6 +243,7 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 
 			// Remove the file after upload is complete
 			defer os.Remove(osFile.Name())
+			// Setup Response header and return SAS URL Links
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
 			w.WriteHeader(http.StatusOK)
 			fmt.Fprintf(w, "<h3>File uploaded %s successfully to Azure Blob Storage!</h3><br />", fileName)
