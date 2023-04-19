@@ -9,7 +9,7 @@ At the end it will provide you new `SAS URI` which can be shared. URI has limite
 You could run this `GO binary` in container.
 It can be used temporarily with `random` storage account. Quickly upload large files (Max size: `512MB`) and share these generated `links` with vendor, customer or internally. Also customers, vendors or someone can use this way to easily and securely upload some data, which will be then available for you.
 
-`upload_page.html` is a template page which is used in Go code to render HTML with CSS styles. 
+`index.html` is a template page which is used in Go code to render HTML with CSS styles. 
 
 `main.go` is main function of whole project. 
 
@@ -83,6 +83,6 @@ export AZURE_STORAGE_ACCOUNT_CONTAINER=<TargetContainerName>
 ```
 
 ## Current issues
-
+- 19.4.2023 - Going to implement `github.com/Azure/azure-sdk-for-go/sdk/storage/azblob` package.
 - 12.4.2023 - `Still persist` / Progress and Counter CSS via Javascript does not work properly.
 - 10.4.2023 - `Fixed` / SAS URI links are fully functional and properly formatted. 
