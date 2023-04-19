@@ -179,7 +179,7 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 			//#######################################
 			// Azure SDK
 			//#######################################
-			// create a credential for authenticating with Azure Active Directory
+			// create a Shared Key credential for authenticating with Azure Active Directory
 			// Upload to Azure Storage
 			credential, err := azblob.NewSharedKeyCredential(storageAccountName, storageAccountKey)
 			if err != nil {
@@ -225,17 +225,20 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 			// Get SAS
 			expiryTime := time.Now().UTC().Add(1 * 24 * time.Hour) // Set Expire time 24 hours
 			// Setup SRC Client
+
 			srcClient := client.ServiceClient().
 				NewContainerClient(storageContainer).
 				NewBlockBlobClient(fileName)
 
 			// Generate SAS URL
-			SAS, err := srcClient.BlobClient().GetSASURL(
+
+			s, err := srcClient.BlobClient().GetSASURL(
 				sas.BlobPermissions{Read: true},
 				expiryTime,
-				&blob.GetSASURLOptions{},
+				&blob.GetSASURLOptions{
+					StartTime: &time.Time{},
+				},
 			)
-
 			if err != nil {
 				log.Printf("Error generating SAS : %v", err)
 				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
@@ -247,7 +250,7 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
 			w.WriteHeader(http.StatusOK)
 			fmt.Fprintf(w, "<h3>File uploaded successfully to Azure Blob Storage!</h3><br />")
-			fmt.Fprintf(w, "SAS: %s", SAS)
+			fmt.Fprintf(w, "SAS: %s", s)
 
 		}
 
