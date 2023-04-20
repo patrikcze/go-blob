@@ -113,9 +113,72 @@
             -o-transition: width 0.6s ease;
             transition: width 0.6s ease;
         }
+
         .azprogress-bar-text {
             margin-left: 10px;
             font-weight: bold;
+        }
+
+        #submitButton {
+            display: inline-block;
+            padding: 10px 20px;
+            margin-top: 20px;
+            font-size: 16px;
+            font-weight: bold;
+            text-align: center;
+            color: #fff;
+            background-color: #007bff;
+            border: none;
+            border-radius: 5px;
+            box-shadow: 0 5px 10px rgba(0, 0, 0, 0.2);
+            transition: all 0.2s ease-in-out;
+        }
+
+        #submitButton:hover {
+            background-color: #0069d9;
+            transform: translateY(-3px);
+        }
+
+        #fileInputContainer {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        #fileInputLabel {
+            background-color: #007bff;
+            color: #fff;
+            padding: 10px;
+            border-radius: 5px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        #fileInputLabel span:hover {
+            text-decoration: underline;
+        }
+
+        #myFile {
+            display: none;
+        }
+
+        #fileName {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            background-color: #fff;
+            color: #333;
+            cursor: pointer;
+        }
+
+        #fileName:focus {
+            outline: none;
+        }
+
+        #fileName:hover {
+            background-color: #eee;
         }
     </style>
 </head>
@@ -127,7 +190,15 @@
         <br />
 
         <form id="uploadForm" class="upload-form">
-            <label for="myFile">Broswe File:</label><input id="myFile" type="file" name="myFile"/><br />
+            <div>
+                <div id="fileInputContainer">
+                    <input type="text" id="fileName" placeholder="No file selected" disabled>
+                    <label for="myFile" id="fileInputLabel"><span>Browse</span></label>
+                    <input id="myFile" type="file" name="myFile">
+                    <br /><br>
+                    
+                </div>
+            </div>
             <input id="submitButton" class="button" type="submit" value="Upload"><br /><br />
         </form>
         <span>Buffer Cache Load Progress...</span>
@@ -139,10 +210,29 @@
         <span>Azure Blob Upload Progress...</span>
         <div class="azprogress">
             <div class="azprogress-bar" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
-                <span class="progress-bar-text">0%</span>
+                <span class="azprogress-bar-text">0%</span>
             </div>
         </div>
         <div id="response"></div>
+        <script>
+            const fileNameInput = document.getElementById("fileName");
+            const fileInputLabel = document.getElementById("fileInputLabel");
+            const fInput = document.getElementById('myFile');
+
+            fInput.addEventListener("click", () => {
+                fInput.click();
+            });
+
+            fInput.addEventListener("change", () => {
+                const file = fInput.files[0];
+                if (file) {
+                    fileNameInput.value = file.name;
+                } else {
+                    fileNameInput.value = "";
+                }
+            });
+
+        </script>
         <script>
             const uploadForm = document.getElementById("uploadForm");
             const fileInput = document.getElementById('myFile');
@@ -250,6 +340,9 @@
         </script>
 
         Maximum file size is 512Mb!
+        <footer>
+            <p>&copy; MaKI | <a href="https://github.com/patrikcze/go-blob" target="_blank">Github</a></p>
+        </footer>
     </center>
 </body>
 
