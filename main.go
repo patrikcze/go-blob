@@ -248,7 +248,7 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprintf(w, "<a href=\"#\" onclick=\"copyToClipboard('%s')\">Copy Download Link to Clipboard</a><br />", urlToSendToSomeone)
 			fmt.Fprintf(w, "<a href=\"%s\" target=\"_blank\">Download File (Link will be valid for 1 Day!)</a><br />", urlToSendToSomeone)
 			//reset percentage:
-			percentage = float64(0.0)
+			// percentage = float64(0.0)
 		}
 
 	}

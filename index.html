@@ -92,14 +92,14 @@
             border-radius: 1.5em;
             -webkit-box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1);
             box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1);
-          }
-          
-          .azprogress-bar {
+        }
+
+        .azprogress-bar {
             float: left;
-            width: 0;
+            width: 0%;
             height: 100%;
             font-weight: bold;
-            margin-left: 10px;
+            margin-left: 0px;
             line-height: 20px;
             color: #fff;
             display: flex;
@@ -112,8 +112,11 @@
             -webkit-transition: width 0.6s ease;
             -o-transition: width 0.6s ease;
             transition: width 0.6s ease;
-          }
-          
+        }
+        .azprogress-bar-text {
+            margin-left: 10px;
+            font-weight: bold;
+        }
     </style>
 </head>
 
@@ -124,7 +127,7 @@
         <br />
 
         <form id="uploadForm" class="upload-form">
-            <label for="myFile">Broswe File:</label><input id="myFile" type="file" name="myFile" /><br />
+            <label for="myFile">Broswe File:</label><input id="myFile" type="file" name="myFile"/><br />
             <input id="submitButton" class="button" type="submit" value="Upload"><br /><br />
         </form>
         <span>Buffer Cache Load Progress...</span>
@@ -135,7 +138,9 @@
         </div>
         <span>Azure Blob Upload Progress...</span>
         <div class="azprogress">
-            <div class="azprogress-bar" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
+            <div class="azprogress-bar" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                <span class="progress-bar-text">0%</span>
+            </div>
         </div>
         <div id="response"></div>
         <script>
@@ -206,45 +211,45 @@
         <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
         <!-- JavaScript code to update the progress bar using AJAX -->
         <script>
-            $(document).ready(function() {
-              var clicked = false;
-              var intervalId;
-            
-              // When the input submit button is clicked, set the flag to true
-              $('#submitButton').click(function() {
-                clicked = true;
-              });
-            
-              // Send an AJAX request to the server every second to update the progress bar
-              intervalId = setInterval(function() {
-                // Only update the progress bar if the input submit button has been clicked
-                if (clicked) {
-                  $.ajax({
-                    type: 'GET',
-                    url: '/progress',
-                    dataType: 'json',
-                    success: function(data) {
-                      // Update the progress bar with the latest progress percentage
-                      var progressBar = $('.azprogress-bar');
-                      var percentage = parseInt(data.Progress);
-                      progressBar.css('width', percentage + '%');
-                      progressBar.attr('aria-valuenow', percentage);
-                      progressBar.text('Upload ' + percentage + '%');
-                      if (percentage >= 100) {
-                        // Stop the interval if progress reaches 100
-                        clearInterval(intervalId);
-                      }
-                    },
-                    error: function(xhr, status, error) {
-                      console.log('Error: ' + error);
+            $(document).ready(function () {
+                var clicked = false;
+                var intervalId;
+
+                // When the input submit button is clicked, set the flag to true
+                $('#submitButton').click(function () {
+                    clicked = true;
+                });
+
+                // Send an AJAX request to the server every second to update the progress bar
+                intervalId = setInterval(function () {
+                    // Only update the progress bar if the input submit button has been clicked
+                    if (clicked) {
+                        $.ajax({
+                            type: 'GET',
+                            url: '/progress',
+                            dataType: 'json',
+                            success: function (data) {
+                                // Update the progress bar with the latest progress percentage
+                                var progressBar = $('.azprogress-bar');
+                                var percentage = parseInt(data.Progress);
+                                progressBar.css('width', percentage + '%');
+                                progressBar.attr('aria-valuenow', percentage);
+                                progressBar.text('Upload ...' + percentage + '%');
+                                if (percentage >= 100) {
+                                    // Stop the interval if progress reaches 100
+                                    clearInterval(intervalId);
+                                }
+                            },
+                            error: function (xhr, status, error) {
+                                console.log('Error: ' + error);
+                            }
+                        });
                     }
-                  });
-                }
-              }, 500);
+                }, 1000);
             });
-            </script>
-            
-            Maximum file size is 512Mb!
+        </script>
+
+        Maximum file size is 512Mb!
     </center>
 </body>
 
