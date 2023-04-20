@@ -205,7 +205,7 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 			// Upload with progress meter using resumable upload
 			_, err = client.UploadFile(ctx, storageContainer, fileName, osFile,
 				&azblob.UploadFileOptions{
-					BlockSize: 4 * 1024 * 1024,
+					BlockSize: BlockBlobMaxStageBlockBytes,
 					Progress: func(bytesTransferred int64) {
 						uploadedBytes = +bytesTransferred
 						percentage = (float64(bytesTransferred) / float64(fileSize)) * 100
