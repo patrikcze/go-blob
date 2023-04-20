@@ -53,21 +53,24 @@ const (
 
 // Initialize the Azure Blob Storage credentials
 func init() {
-	// Ensure that storageAccountName, storageAccountKey and storageContainer are not empty
-	if os.Getenv("AZURE_STORAGE_ACCOUNT_NAME") == "" {
+	// Azure Storage Account Name
+	storageAccountName, exists := os.LookupEnv("AZURE_STORAGE_ACCOUNT_NAME")
+	if !exists || storageAccountName == "" {
 		log.Fatal("AZURE_STORAGE_ACCOUNT_NAME is not set.")
 	}
-	if os.Getenv("AZURE_STORAGE_ACCOUNT_KEY") == "" {
+
+	// Azure Storage Account Key
+	storageAccountKey, exists := os.LookupEnv("AZURE_STORAGE_ACCOUNT_KEY")
+	if !exists || storageAccountKey == "" {
 		log.Fatal("AZURE_STORAGE_ACCOUNT_KEY is not set.")
 	}
-	if os.Getenv("AZURE_STORAGE_ACCOUNT_CONTAINER") == "" {
-		log.Fatal("AZURE_STORAGE_ACCOUNT_CONTAINER is not set.")
-	}
 
-	// Get the storage account credentials from the environment variables
-	storageAccountName = os.Getenv("AZURE_STORAGE_ACCOUNT_NAME")
-	storageAccountKey = os.Getenv("AZURE_STORAGE_ACCOUNT_KEY")
-	storageContainer = os.Getenv("AZURE_STORAGE_ACCOUNT_CONTAINER")
+	// Azure Storage Account Container
+	storageContainer, exists := os.LookupEnv("AZURE_STORAGE_ACCOUNT_CONTAINER")
+	if !exists || storageContainer == "" {
+		// Use a default container name
+		storageContainer = "upload"
+	}
 }
 
 func main() {
