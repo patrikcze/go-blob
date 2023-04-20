@@ -111,6 +111,7 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Print("GET request successfully handled")
+	defer w.(http.Flusher).Flush() // Release the responsewriter before exiting the function
 }
 
 func handlePost(w http.ResponseWriter, r *http.Request) {
@@ -251,13 +252,13 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 		}
 
 	}
-
+	defer w.(http.Flusher).Flush() // Release the responsewriter before exiting the function
 }
 
 func progressHandler(w http.ResponseWriter, r *http.Request) {
 	// Calculate the progress percentage (assumes the progress is stored in a global variable)
 	progressPercentage := int(percentage)
-
+	defer w.(http.Flusher).Flush() // Release the responsewriter before exiting the function
 	// Return the progress percentage as a JSON object
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(struct{ Progress int }{progressPercentage})
