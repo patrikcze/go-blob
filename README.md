@@ -61,6 +61,14 @@ To pull built image from docker registry you can try
 docker pull patrikcze/go-blob:0.1.2
 ```
 
+```bash
+docker run --rm --name $(APP) -p 9000:9000 \
+	-e AZURE_STORAGE_ACCOUNT_NAME=<storage account name> \
+	-e AZURE_STORAGE_ACCOUNT_KEY=<shared key> \
+	-e AZURE_STORAGE_ACCOUNT_CONTAINER=<containername> \
+	$(REGISTRY)/$(IMAGE):$(TAG)
+```
+
 Following architectures have been published. 
 
 - `linux/amd64`
@@ -83,6 +91,7 @@ export AZURE_STORAGE_ACCOUNT_CONTAINER=<TargetContainerName>
 ```
 
 ## Current issues
+- 20.4.2023 - `Fixed` / Progress bar fixed, style can be improved little bit. 
 - 19.4.2023 - `Microsoft GO SDK` implemented in [Dev](https://github.com/patrikcze/go-blob/tree/dev) branch
 - 12.4.2023 - `Still persist` / Progress and Counter CSS via Javascript does not work properly.
 - 10.4.2023 - `Fixed` / SAS URI links are fully functional and properly formatted. 
