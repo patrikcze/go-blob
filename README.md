@@ -58,7 +58,7 @@ make delete #Will remove docker image
 To pull built image from docker registry you can try 
 
 ```bash
-docker pull patrikcze/go-blob:0.1.2
+docker pull patrikcze/go-blob:0.1.3
 ```
 
 ```bash
@@ -91,6 +91,7 @@ export AZURE_STORAGE_ACCOUNT_CONTAINER=<TargetContainerName>
 ```
 
 ## Current issues
+- 20.4.2023 - `Docker Image` Update to version 0.1.3 has been done.
 - 20.4.2023 - `Fixed` / Progress bar fixed, style can be improved little bit. 
 - 19.4.2023 - `Microsoft GO SDK` implemented in [Dev](https://github.com/patrikcze/go-blob/tree/dev) branch
 - 12.4.2023 - `Still persist` / Progress and Counter CSS via Javascript does not work properly.
