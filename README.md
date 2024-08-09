@@ -9,7 +9,7 @@ At the end it will provide you new `SAS URI` which can be shared. URI has limite
 You could run this `GO binary` in container.
 It can be used temporarily with `random` storage account. Quickly upload large files (Max size: `512MB`) and share these generated `links` with vendor, customer or internally. Also customers, vendors or someone can use this way to easily and securely upload some data, which will be then available for you.
 
-`upload_page.html` is a template page which is used in Go code to render HTML with CSS styles. 
+`index.html` is a template page which is used in Go code to render HTML with CSS styles. 
 
 `main.go` is main function of whole project. 
 
@@ -94,6 +94,8 @@ Compressed size approx : `351 MB`
 
 
 ## Current issues
+
+- 19.4.2023 - Going to implement `github.com/Azure/azure-sdk-for-go/sdk/storage/azblob` package.
 - 20.4.2023 - `Docker Image` Update to version 0.1.3 has been done.
 - 20.4.2023 - `Fixed` / Progress bar fixed, style can be improved little bit. 
 - 19.4.2023 - `Microsoft GO SDK` implemented in [Dev](https://github.com/patrikcze/go-blob/tree/dev) branch
