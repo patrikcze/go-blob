@@ -196,7 +196,7 @@
                     <label for="myFile" id="fileInputLabel"><span>Browse</span></label>
                     <input id="myFile" type="file" name="myFile">
                     <br /><br>
-                    
+
                 </div>
             </div>
             <input id="submitButton" class="button" type="submit" value="Upload"><br /><br />
@@ -258,6 +258,8 @@
                     return;
                 }
 
+                console.log("Uploading file:", file.name); // Log file name
+
                 // Create a new FormData object and append the file to it
                 const formData = new FormData();
                 formData.append('myFile', file);
@@ -270,13 +272,14 @@
 
                 // Set up a listener to handle the server's response
                 xhr.onload = function () {
+                    console.log("Upload response status:", xhr.status); // Log response status
                     if (xhr.status === 200) {
                         const responseHtml = xhr.responseText;
                         responseDiv.innerHTML = responseHtml;
                         const downloadLink = responseDiv.querySelector("a[href*='blob.core.windows.net']").getAttribute("href");
                         copyToClipboard(downloadLink);
-                        //alert(`Upload complete! Download link copied to clipboard!`);
                     } else {
+                        console.error("Error response from server:", xhr.responseText); // Log error response
                         alert("An error occurred while uploading the file.");
                     }
                 };
@@ -284,8 +287,8 @@
                 // Open the connection to the server and send the file
                 xhr.open("POST", "/upload");
                 xhr.send(formData);
-
             });
+
 
             function updateProgressBar(progressEvent) {
                 const percent = progressEvent.lengthComputable ? (progressEvent.loaded / progressEvent.total) * 100 : 0;
