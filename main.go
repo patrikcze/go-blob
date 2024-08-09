@@ -261,8 +261,7 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
 			w.WriteHeader(http.StatusOK)
 			fmt.Fprintf(w, "<h3>File uploaded %s successfully to Azure Blob Storage!</h3><br />", fileName)
-			fmt.Fprintf(w, "<a href=\"#\" onclick=\"copyToClipboard('%s')\">Copy Download Link to Clipboard</a><br />", s)
-			fmt.Fprintf(w, "<a href=\"%s\" target=\"_blank\">Download File (Link will be valid for 1 Day!)</a><br />", s)
+			fmt.Fprintf(w, "<a href=\"%s\" target=\"_blank\">Download File (Valid only for 1 Day!)</a><br />", s)
 		}
 
 	}
@@ -275,10 +274,5 @@ func progressHandler(w http.ResponseWriter, r *http.Request) {
 	defer w.(http.Flusher).Flush() // Release the responsewriter before exiting the function
 	// Return the progress percentage as a JSON object
 	w.Header().Set("Content-Type", "application/json")
-	err := json.NewEncoder(w).Encode(struct{ Progress int }{progressPercentage})
-	if err != nil {
-		log.Printf("Error encoding JSON: %v", err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return
-	}
+	json.NewEncoder(w).Encode(struct{ Progress int }{progressPercentage})
 }
