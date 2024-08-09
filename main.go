@@ -218,7 +218,10 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 					Progress: func(bytesTransferred int64) {
 						uploadedBytes = +bytesTransferred
 						percentage = (float64(bytesTransferred) / float64(fileSize)) * 100
-						bar.Set(int(percentage))
+						if err := bar.Set(int(percentage)); err != nil {
+							log.Printf("Error setting progress bar: %v", err)
+							// Handle the error here, such as returning an error response to the client
+						}
 						//log.Printf("Uploaded %d bytes of %d (%.2f%%)", uploadedBytes, fileSize, percentage)
 					},
 				})
@@ -272,5 +275,10 @@ func progressHandler(w http.ResponseWriter, r *http.Request) {
 	defer w.(http.Flusher).Flush() // Release the responsewriter before exiting the function
 	// Return the progress percentage as a JSON object
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(struct{ Progress int }{progressPercentage})
+	err := json.NewEncoder(w).Encode(struct{ Progress int }{progressPercentage})
+	if err != nil {
+		log.Printf("Error encoding JSON: %v", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
 }
