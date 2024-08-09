@@ -1,4 +1,5 @@
-FROM golang:latest
+
+FROM golang
 
 WORKDIR /app
 COPY . .

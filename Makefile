@@ -1,6 +1,6 @@
 # Make variables
 APP=go-blob
-VERSION=0.1.2
+VERSION=0.1.3
 BUILD_TIME=$(shell date -u +%Y-%m-%dT%H:%M:%S.%NZ)
 DOCKER_ORG=mytestorg
 

@@ -23,6 +23,21 @@ Webpage should be located to : [http://localhost:9000/](http://localhost:9000/)
 
 ![](/images/upload_progress.png)
 
+## Requirements 
+
+### Environmnet variables
+
+You need to define following Env vars:
+
+```bash
+export AZURE_STORAGE_ACCOUNT_NAME=<TargetStorageAccountName>
+export AZURE_STORAGE_ACCOUNT_KEY=<XXXXXXXXXXXXXXXXXXXXXXXXXXX/XXXXXXXXXXXXXXXXXXXXXXX==>
+export AZURE_STORAGE_ACCOUNT_CONTAINER=<TargetContainerName>
+```
+
+### Security concerns
+
+The `provided code` does not contain any obvious `security flaws` as it does not accept any user input, only parses HTTP requests, and uploads and downloads files from an Azure Storage account using the `Azure Blob Storage Go SDK`. However, it is important to ensure that the environment variables `AZURE_STORAGE_ACCOUNT_NAME`, `AZURE_STORAGE_ACCOUNT_KEY`, and `AZURE_STORAGE_ACCOUNT_CONTAINER` are kept secure and are not exposed to unauthorized parties. Additionally, it is recommended to monitor and log any activity related to the storage account or the HTTP requests made to the server for potential security issues.
 
 ## How to Use
 1. Setup `environment` variables. (Could be on your computer or you can get them from KeyVault on K8S)
@@ -58,7 +73,15 @@ make delete #Will remove docker image
 To pull built image from docker registry you can try 
 
 ```bash
-docker pull patrikcze/go-blob:0.1.2
+docker pull patrikcze/go-blob:0.1.3
+```
+
+```bash
+docker run --rm --name $(APP) -p 9000:9000 \
+	-e AZURE_STORAGE_ACCOUNT_NAME=<storage account name> \
+	-e AZURE_STORAGE_ACCOUNT_KEY=<shared key> \
+	-e AZURE_STORAGE_ACCOUNT_CONTAINER=<containername> \
+	$(REGISTRY)/$(IMAGE):$(TAG)
 ```
 
 Following architectures have been published. 
@@ -70,19 +93,11 @@ Following architectures have been published.
 Compressed size approx : `351 MB`
 
 
-## Requirements 
-
-### Environmnet variables
-
-You need to define following Env vars:
-
-```bash
-export AZURE_STORAGE_ACCOUNT_NAME=<TargetStorageAccountName>
-export AZURE_STORAGE_ACCOUNT_KEY=<XXXXXXXXXXXXXXXXXXXXXXXXXXX/XXXXXXXXXXXXXXXXXXXXXXX==>
-export AZURE_STORAGE_ACCOUNT_CONTAINER=<TargetContainerName>
-```
-
 ## Current issues
+
 - 19.4.2023 - Going to implement `github.com/Azure/azure-sdk-for-go/sdk/storage/azblob` package.
+- 20.4.2023 - `Docker Image` Update to version 0.1.3 has been done.
+- 20.4.2023 - `Fixed` / Progress bar fixed, style can be improved little bit. 
+- 19.4.2023 - `Microsoft GO SDK` implemented in [Dev](https://github.com/patrikcze/go-blob/tree/dev) branch
 - 12.4.2023 - `Still persist` / Progress and Counter CSS via Javascript does not work properly.
 - 10.4.2023 - `Fixed` / SAS URI links are fully functional and properly formatted. 
