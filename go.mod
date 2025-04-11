@@ -1,11 +1,14 @@
 module github.com/patrikcze/go-blob
 
-go 1.20
+go 1.23.0
+
+toolchain go1.24.1
 
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.2.2
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.0.0
 	github.com/schollz/progressbar/v3 v3.13.1
+	golang.org/x/time v0.11.0
 )
 
 require (
