@@ -22,6 +22,7 @@ import (
 	"github.com/schollz/progressbar/v3"
 	"golang.org/x/time/rate"
 )
+
 // Define a struct to hold the template data
 type TemplateData struct {
 	Progress int
@@ -72,6 +73,7 @@ var (
 	uploadMutex      sync.Mutex // Mutex for controlling concurrent uploads
 	uploadInProgress bool
 )
+
 const (
 	// Set request size to support up to 4 GB
 	maxRequestSize = 4 * 1024 * 1024 * 1024
@@ -102,7 +104,7 @@ const (
 func init() {
 	// Check for dev mode environment variable
 	devMode := os.Getenv("DEV_MODE") == "true"
-	
+
 	// Initialize the rate limiter
 	uploadLimiter = rate.NewLimiter(rate.Limit(RateLimitRequestsPerSecond), RateLimitBurst)
 
@@ -120,6 +122,12 @@ func init() {
 		".txt":  true,
 		".csv":  true,
 		".zip":  true,
+		".iso":  true,
+		".mp4":  true,
+		".tgz":  true,
+		".tar":  true,
+		".gz":   true,
+		".7z":   true,
 	}
 
 	// Set up application configuration
@@ -201,11 +209,11 @@ func cleanupTempFiles() {
 func main() {
 	// Set up proper logging
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
-	
+
 	if appConfig.DevMode {
 		log.Printf("Application starting in DEVELOPMENT MODE with local storage in %s", appConfig.TempDir)
 	} else {
-		log.Printf("Application starting with storage account: %s, container: %s", 
+		log.Printf("Application starting with storage account: %s, container: %s",
 			appConfig.StorageAccountName, appConfig.StorageContainer)
 	}
 
@@ -213,16 +221,16 @@ func main() {
 	http.HandleFunc("/", handleGet)
 	http.HandleFunc("/upload", handlePost)
 	http.HandleFunc("/progress", progressHandler)
-	
-// Start the server
-fmt.Println("Starting server on port 9000...")
-server := &http.Server{
-	Addr:         ":9000",
-	ReadTimeout:  5 * time.Minute,  // Increased for large file uploads
-	WriteTimeout: 30 * time.Minute, // Increased for large file uploads
-	IdleTimeout:  2 * time.Minute,
-}
-	
+
+	// Start the server
+	fmt.Println("Starting server on port 9000...")
+	server := &http.Server{
+		Addr:         ":9000",
+		ReadTimeout:  5 * time.Minute,  // Increased for large file uploads
+		WriteTimeout: 30 * time.Minute, // Increased for large file uploads
+		IdleTimeout:  2 * time.Minute,
+	}
+
 	if err := server.ListenAndServe(); err != nil {
 		log.Fatalf("Failed to start the server: %v", err)
 	}
@@ -234,7 +242,7 @@ func handleError(w http.ResponseWriter, msg string, err error, statusCode int) {
 	if err != nil {
 		logMsg = fmt.Sprintf("%s: %v", msg, err)
 	}
-	
+
 	log.Printf("Error: %s", logMsg)
 	http.Error(w, msg, statusCode)
 }
@@ -316,13 +324,13 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 		handleError(w, "Method not allowed", nil, http.StatusMethodNotAllowed)
 		return
 	}
-	
+
 	// Apply rate limiting
 	if !uploadLimiter.Allow() {
 		handleError(w, "Too many upload requests, please try again later", nil, http.StatusTooManyRequests)
 		return
 	}
-	
+
 	// Ensure only one upload happens at a time
 	uploadMutex.Lock()
 	if uploadInProgress {
@@ -330,10 +338,10 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 		handleError(w, "Another upload is in progress, please try again later", nil, http.StatusServiceUnavailable)
 		return
 	}
-	
+
 	uploadInProgress = true
 	uploadMutex.Unlock()
-	
+
 	// Set up a deferred function to reset the upload state
 	defer func() {
 		uploadMutex.Lock()
@@ -343,7 +351,7 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 	// Limit the size of the request body to prevent denial of service attacks
 	r.Body = http.MaxBytesReader(w, r.Body, maxRequestSize)
 	log.Printf("Setting buffer size to : %v (bytes)", maxRequestSize)
-	
+
 	// Parse multipart form
 	if err := r.ParseMultipartForm(maxRequestSize); err != nil {
 		if err.Error() == "http: request body too large" {
@@ -363,18 +371,18 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 			}
 			// Validate file size
 			if !validateFileSize(fileHeader.Size) {
-				handleError(w, fmt.Sprintf("File size must be between %d and %d bytes", 
+				handleError(w, fmt.Sprintf("File size must be between %d and %d bytes",
 					appConfig.MinFileSize, appConfig.MaxFileSize), nil, http.StatusBadRequest)
 				return
 			}
-			
+
 			// Open the file
 			file, err := fileHeader.Open()
 			if err != nil {
 				handleError(w, "Error opening file", err, http.StatusInternalServerError)
 				return
 			}
-			
+
 			// Use a defer with a named function for proper resource cleanup
 			defer func() {
 				if err := safeClose(file, "uploaded file"); err != nil {
@@ -395,7 +403,7 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 
 			// Create temporary file path
 			tempFile := filepath.Join(appConfig.TempDir, fileHeader.Filename)
-			
+
 			// Convert multipart.File to os.File
 			osFile, err := os.Create(tempFile)
 			if err != nil {
@@ -416,38 +424,38 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 					log.Printf("Failed to close temp file: %v", err)
 				}
 			}()
-// Stream the file to temporary storage in chunks
-totalSize := fileHeader.Size
-var uploadedSize int64
-buf := make([]byte, 256*1024) // 256KB buffer
-for {
-	// Read a chunk
-	n, err := file.Read(buf)
-	if err != nil && err != io.EOF {
-		handleError(w, "Error reading file", err, http.StatusInternalServerError)
-		return
-	}
-	if n == 0 {
-		break
-	}
+			// Stream the file to temporary storage in chunks
+			totalSize := fileHeader.Size
+			var uploadedSize int64
+			buf := make([]byte, 256*1024) // 256KB buffer
+			for {
+				// Read a chunk
+				n, err := file.Read(buf)
+				if err != nil && err != io.EOF {
+					handleError(w, "Error reading file", err, http.StatusInternalServerError)
+					return
+				}
+				if n == 0 {
+					break
+				}
 
-	// Write the chunk to the temporary file
-	if _, err := osFile.Write(buf[:n]); err != nil {
-		handleError(w, "Error writing to temporary file", err, http.StatusInternalServerError)
-		return
-	}
+				// Write the chunk to the temporary file
+				if _, err := osFile.Write(buf[:n]); err != nil {
+					handleError(w, "Error writing to temporary file", err, http.StatusInternalServerError)
+					return
+				}
 
-	// Update the uploaded size
-	uploadedSize += int64(n)
-	percentage := (float64(uploadedSize) / float64(totalSize)) * 100
-	log.Printf("Cached %d bytes of %d (%.2f%%)", uploadedSize, totalSize, percentage)
-}
+				// Update the uploaded size
+				uploadedSize += int64(n)
+				percentage := (float64(uploadedSize) / float64(totalSize)) * 100
+				log.Printf("Cached %d bytes of %d (%.2f%%)", uploadedSize, totalSize, percentage)
+			}
 
-// Seek back to beginning of file for upload
-if _, err := osFile.Seek(0, io.SeekStart); err != nil {
-	handleError(w, "Error preparing file for upload", err, http.StatusInternalServerError)
-	return
-}
+			// Seek back to beginning of file for upload
+			if _, err := osFile.Seek(0, io.SeekStart); err != nil {
+				handleError(w, "Error preparing file for upload", err, http.StatusInternalServerError)
+				return
+			}
 			// Check if we're in dev mode or should use Azure
 			if !appConfig.DevMode {
 				//#######################################
@@ -460,9 +468,9 @@ if _, err := osFile.Seek(0, io.SeekStart); err != nil {
 					handleError(w, "Error creating Azure Storage credentials", err, http.StatusInternalServerError)
 					return
 				}
-				
+
 				u := fmt.Sprintf("https://%s.blob.core.windows.net/", appConfig.StorageAccountName)
-				
+
 				// Create new client for AzBlob with Shared Key Credentials
 				client, err := azblob.NewClientWithSharedKeyCredential(u, credential, &azblob.ClientOptions{})
 				if err != nil {
@@ -486,9 +494,9 @@ if _, err := osFile.Seek(0, io.SeekStart); err != nil {
 						BarEnd:        "]",
 					}),
 				)
-// Create context with timeout for the upload operation (extended for large files)
-ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
-defer cancel() // Ensure context resources are released
+				// Create context with timeout for the upload operation (extended for large files)
+				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+				defer cancel() // Ensure context resources are released
 
 				// Upload with progress meter using resumable upload
 				_, err = client.UploadFile(ctx, appConfig.StorageContainer, fileName, osFile,
@@ -497,7 +505,7 @@ defer cancel() // Ensure context resources are released
 						Progress: func(bytesTransferred int64) {
 							// Update the upload state with thread safety
 							uploadState.Update(bytesTransferred)
-							
+
 							// Update the progress bar
 							percentage := uploadState.GetPercentage()
 							if err := bar.Set(int(percentage)); err != nil {
@@ -511,7 +519,7 @@ defer cancel() // Ensure context resources are released
 					handleError(w, "Error uploading file to Azure Storage", err, http.StatusInternalServerError)
 					return
 				}
-				log.Printf("Uploaded %d bytes of %d (%.2f%%)", 
+				log.Printf("Uploaded %d bytes of %d (%.2f%%)",
 					uploadState.UploadedBytes, uploadState.FileSize, uploadState.GetPercentage())
 				expiryTime := time.Now().UTC().Add(1 * 24 * time.Hour) // Set Expire time 24 hours
 				startTime := time.Now().UTC()
@@ -569,7 +577,7 @@ func progressHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Get the current progress percentage from the thread-safe uploadState
 	progressPercentage := int(uploadState.GetPercentage())
-	
+
 	// Return the progress percentage as a JSON object
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(struct{ Progress int }{progressPercentage}); err != nil {
