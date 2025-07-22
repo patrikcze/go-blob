@@ -73,8 +73,8 @@ var (
 	uploadInProgress bool
 )
 const (
-	// Set buffer size to 512 MB
-	maxRequestSize = 512 * 1024 * 1024
+	// Set request size to support up to 4 GB
+	maxRequestSize = 4 * 1024 * 1024 * 1024
 
 	// MinFileSize indicates the minimum allowed file size (1KB)
 	minFileSize = 1 * 1024
@@ -214,14 +214,14 @@ func main() {
 	http.HandleFunc("/upload", handlePost)
 	http.HandleFunc("/progress", progressHandler)
 	
-	// Start the server
-	fmt.Println("Starting server on port 9000...")
-	server := &http.Server{
-		Addr:         ":9000",
-		ReadTimeout:  60 * time.Second,
-		WriteTimeout: 60 * time.Second,
-		IdleTimeout:  120 * time.Second,
-	}
+// Start the server
+fmt.Println("Starting server on port 9000...")
+server := &http.Server{
+	Addr:         ":9000",
+	ReadTimeout:  5 * time.Minute,  // Increased for large file uploads
+	WriteTimeout: 30 * time.Minute, // Increased for large file uploads
+	IdleTimeout:  2 * time.Minute,
+}
 	
 	if err := server.ListenAndServe(); err != nil {
 		log.Fatalf("Failed to start the server: %v", err)
@@ -416,24 +416,38 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 					log.Printf("Failed to close temp file: %v", err)
 				}
 			}()
-			// Use a buffer for more efficient I/O
-			buf := make([]byte, 32*1024) // 32KB buffer
-			_, err = io.CopyBuffer(osFile, file, buf)
-			if err != nil {
-				handleError(w, "Error caching the file", err, http.StatusInternalServerError)
-				
-				// Clean up the temporary file on error
-				if removeErr := os.Remove(tempFile); removeErr != nil {
-					log.Printf("Error removing temporary file %s: %v", tempFile, removeErr)
-				}
-				return
-			}
-			
-			// Seek back to beginning of file for upload
-			if _, err = osFile.Seek(0, io.SeekStart); err != nil {
-				handleError(w, "Error preparing file for upload", err, http.StatusInternalServerError)
-				return
-			}
+// Stream the file to temporary storage in chunks
+totalSize := fileHeader.Size
+var uploadedSize int64
+buf := make([]byte, 256*1024) // 256KB buffer
+for {
+	// Read a chunk
+	n, err := file.Read(buf)
+	if err != nil && err != io.EOF {
+		handleError(w, "Error reading file", err, http.StatusInternalServerError)
+		return
+	}
+	if n == 0 {
+		break
+	}
+
+	// Write the chunk to the temporary file
+	if _, err := osFile.Write(buf[:n]); err != nil {
+		handleError(w, "Error writing to temporary file", err, http.StatusInternalServerError)
+		return
+	}
+
+	// Update the uploaded size
+	uploadedSize += int64(n)
+	percentage := (float64(uploadedSize) / float64(totalSize)) * 100
+	log.Printf("Cached %d bytes of %d (%.2f%%)", uploadedSize, totalSize, percentage)
+}
+
+// Seek back to beginning of file for upload
+if _, err := osFile.Seek(0, io.SeekStart); err != nil {
+	handleError(w, "Error preparing file for upload", err, http.StatusInternalServerError)
+	return
+}
 			// Check if we're in dev mode or should use Azure
 			if !appConfig.DevMode {
 				//#######################################
@@ -472,9 +486,9 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 						BarEnd:        "]",
 					}),
 				)
-				// Create context with timeout for the upload operation
-				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
-				defer cancel() // Ensure context resources are released
+// Create context with timeout for the upload operation (extended for large files)
+ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+defer cancel() // Ensure context resources are released
 
 				// Upload with progress meter using resumable upload
 				_, err = client.UploadFile(ctx, appConfig.StorageContainer, fileName, osFile,
