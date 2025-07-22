@@ -1,8 +1,8 @@
 # Make variables
 APP=go-blob
-VERSION=0.1.3
+VERSION=0.9.2
 BUILD_TIME=$(shell date -u +%Y-%m-%dT%H:%M:%S.%NZ)
-DOCKER_ORG=mytestorg
+DOCKER_ORG=patrikcze
 
 # Docker image variables
 IMAGE=$(DOCKER_ORG)/$(APP)
