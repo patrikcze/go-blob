@@ -1,103 +1,135 @@
-# Go Blob File Uploader
+# Go Blob File Uploader - Modernized Version
 
-This is just small project to write simple API to upload files to specific Azure Storage account and Container.  For this purpose simple `Web Form` will be used. This WebForm consist of Browse and Upload botton.
-You just need to pick up file from your drive and it will simply upload it to `predefined` Storage in Azure. 
+## What's New
 
-At the end it will provide you new `SAS URI` which can be shared. URI has limited validity (`1 Day`).
+This modernized version of the Go Blob File Uploader includes significant improvements to both the web interface and Go backend:
 
-**Possible usecase**
-You could run this `GO binary` in container.
-It can be used temporarily with `random` storage account. Quickly upload large files (Max size: `512MB`) and share these generated `links` with vendor, customer or internally. Also customers, vendors or someone can use this way to easily and securely upload some data, which will be then available for you.
+### 🎨 Web Interface Improvements
+- **Modern Design**: Complete UI overhaul with gradient backgrounds and smooth animations
+- **Enhanced UX**: Better file selection feedback with file size display
+- **Real-time Progress**: Improved progress bars with smooth transitions
+- **Responsive Design**: Mobile-friendly layout that works on all devices
+- **Better Error Handling**: Clear error messages and validation feedback
 
-`index.html` is a template page which is used in Go code to render HTML with CSS styles. 
+### 🚀 Go Backend Enhancements
+- **Large File Support**: Now handles files up to **4GB** (increased from 512MB)
+- **Memory Efficiency**: Improved streaming upload with optimized buffer management
+- **Better Concurrency**: Enhanced thread-safety and resource management
+- **Extended Timeouts**: Appropriate timeouts for large file uploads (30 minutes)
+- **Chunked Processing**: Files are processed in 256KB chunks to minimize memory usage
 
-`main.go` is main function of whole project. 
+## Features
 
-Webpage should be located to : [http://localhost:9000/](http://localhost:9000/)
+- ✅ Upload files up to 4GB to Azure Blob Storage
+- ✅ Generate time-limited SAS URLs (24 hours)
+- ✅ Real-time upload progress tracking
+- ✅ Memory-efficient streaming uploads
+- ✅ Development mode for local testing
+- ✅ Rate limiting and concurrent upload protection
+- ✅ Modern, responsive web interface
 
+## Quick Start
 
-![](/images/upload_completed.png)
-
-[Screenshot](/images/goblob_uploader.png "Just an basic view of webform.")
-
-
-![](/images/upload_progress.png)
-
-## Requirements 
-
-### Environmnet variables
-
-You need to define following Env vars:
-
+### Development Mode (No Azure Required)
 ```bash
-export AZURE_STORAGE_ACCOUNT_NAME=<TargetStorageAccountName>
-export AZURE_STORAGE_ACCOUNT_KEY=<XXXXXXXXXXXXXXXXXXXXXXXXXXX/XXXXXXXXXXXXXXXXXXXXXXX==>
-export AZURE_STORAGE_ACCOUNT_CONTAINER=<TargetContainerName>
+# Run in development mode - files saved locally
+./run-dev.sh
 ```
 
-### Security concerns
-
-The `provided code` does not contain any obvious `security flaws` as it does not accept any user input, only parses HTTP requests, and uploads and downloads files from an Azure Storage account using the `Azure Blob Storage Go SDK`. However, it is important to ensure that the environment variables `AZURE_STORAGE_ACCOUNT_NAME`, `AZURE_STORAGE_ACCOUNT_KEY`, and `AZURE_STORAGE_ACCOUNT_CONTAINER` are kept secure and are not exposed to unauthorized parties. Additionally, it is recommended to monitor and log any activity related to the storage account or the HTTP requests made to the server for potential security issues.
-
-## How to Use
-1. Setup `environment` variables. (Could be on your computer or you can get them from KeyVault on K8S)
-2. To run `app locally` execute :
+### Production Mode (With Azure)
 ```bash
-make build-app
-./release/go-blob 
+# Set your Azure credentials
+export AZURE_STORAGE_ACCOUNT_NAME="yourstorageaccount"
+export AZURE_STORAGE_ACCOUNT_KEY="your_access_key"
+export AZURE_STORAGE_ACCOUNT_CONTAINER="upload"
+
+# Build and run
+go build -o go-blob main.go
+./go-blob
 ```
 
-![](images/build_binary.gif)
+## Supported File Types
+- Images: `.jpg`, `.jpeg`, `.png`, `.gif`
+- Documents: `.pdf`, `.doc`, `.docx`, `.xls`, `.xlsx`, `.txt`, `.csv`
+- Archives: `.zip`
 
+## Configuration
 
-3. To `build container image` execute :
+### Environment Variables
+- `AZURE_STORAGE_ACCOUNT_NAME`: Your Azure storage account name
+- `AZURE_STORAGE_ACCOUNT_KEY`: Your Azure storage account access key
+- `AZURE_STORAGE_ACCOUNT_CONTAINER`: Container name (defaults to "upload")
+- `DEV_MODE`: Set to "true" for local development without Azure
+
+### Server Configuration
+- **Port**: 9000
+- **Max File Size**: 4GB
+- **Upload Timeout**: 30 minutes
+- **Rate Limit**: 5 requests per second
+
+## Technical Improvements
+
+### Memory Optimization
+- Streaming file processing with 256KB buffers
+- Reduced memory footprint for large files
+- Proper resource cleanup and garbage collection
+
+### Error Handling
+- Comprehensive error logging
+- Graceful failure recovery
+- User-friendly error messages
+
+### Security
+- Request size limiting
+- File type validation
+- Rate limiting protection
+- Proper resource cleanup
+
+## Usage
+
+1. Open your browser to `http://localhost:9000`
+2. Click "Choose File" to select a file
+3. Click "Upload File" to start the upload
+4. Monitor progress in real-time
+5. Copy the generated download link when complete
+
+## Docker Support
+
+Build container image:
 ```bash
 make docker-build
 ```
-4. To run `app` in docker container run (It is not a Deamon to stop run `CTRL+C`): 
+
+Run in container:
 ```bash
-make start
+docker run --rm -p 9000:9000 \
+  -e AZURE_STORAGE_ACCOUNT_NAME="youraccount" \
+  -e AZURE_STORAGE_ACCOUNT_KEY="yourkey" \
+  -e AZURE_STORAGE_ACCOUNT_CONTAINER="upload" \
+  go-blob
 ```
 
-![](images/build_docker.gif)
+## Development
 
+The application now supports both development and production modes:
 
-5. To `clean` build run.
-```bash
-make cleanup #Will delete release/ folder
-make delete #Will remove docker image
-```
+- **Development Mode**: Files are stored locally in the `temp/` directory
+- **Production Mode**: Files are uploaded to Azure Blob Storage with SAS URL generation
 
-## Docker Registry
+## Performance Notes
 
-To pull built image from docker registry you can try 
+- Large files (>1GB) are processed efficiently using streaming uploads
+- Memory usage remains constant regardless of file size
+- Upload progress is tracked in real-time
+- Concurrent uploads are limited to prevent resource exhaustion
 
-```bash
-docker pull patrikcze/go-blob:0.1.3
-```
+## Browser Compatibility
 
-```bash
-docker run --rm --name $(APP) -p 9000:9000 \
-	-e AZURE_STORAGE_ACCOUNT_NAME=<storage account name> \
-	-e AZURE_STORAGE_ACCOUNT_KEY=<shared key> \
-	-e AZURE_STORAGE_ACCOUNT_CONTAINER=<containername> \
-	$(REGISTRY)/$(IMAGE):$(TAG)
-```
+- Chrome 60+
+- Firefox 55+
+- Safari 11+
+- Edge 79+
 
-Following architectures have been published. 
+## License
 
-- `linux/amd64`
-- `linux/arm/v7`
-- `linux/arm64`
-
-Compressed size approx : `351 MB`
-
-
-## Current issues
-
-- 19.4.2023 - Going to implement `github.com/Azure/azure-sdk-for-go/sdk/storage/azblob` package.
-- 20.4.2023 - `Docker Image` Update to version 0.1.3 has been done.
-- 20.4.2023 - `Fixed` / Progress bar fixed, style can be improved little bit. 
-- 19.4.2023 - `Microsoft GO SDK` implemented in [Dev](https://github.com/patrikcze/go-blob/tree/dev) branch
-- 12.4.2023 - `Still persist` / Progress and Counter CSS via Javascript does not work properly.
-- 10.4.2023 - `Fixed` / SAS URI links are fully functional and properly formatted. 
+MIT License - see original repository for details.
