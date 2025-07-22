@@ -11,339 +11,295 @@
                 .then(() => alert(`Download link copied to clipboard: ${url}`))
                 .catch((e) => console.error(e));
         }
-        /*
-        const progressBar = document.getElementsByClassName('progress-bar')[0]
-        setInterval(() => {
-            const computedStyle = getComputedStyle(progressBar)
-            const width = parseFloat(computedStyle.getPropertyValue('--width')) || 0
-            progressBar.style.setProperty('--width', width + .1)
-        }, 5);
-        */
     </script>
     <style>
-        @import url('https://fonts.googleapis.com/css?family=Raleway');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
         * {
-            font-family: Raleway;
-        }
-
-        html {
-            width: 100%;
-            height: 100%;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            background-color: #DFDFDF;
-        }
-
-        input[type=file] {
-            width: 100%;
-            height: 100%;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            background-color: #DFDFDF;
-            border: #111;
-        }
-
-        *,
-        *::before,
-        *::after {
+            margin: 0;
+            padding: 0;
             box-sizing: border-box;
+            font-family: 'Inter', sans-serif;
         }
 
         body {
-            padding: 0;
-            margin: 0;
-        }
-
-        .progress-bar {
-            position: relative;
-            width: 500px;
-            height: 2em;
-            background-color: #111;
-            border-radius: 1.5em;
-            color: white;
-        }
-
-        .progress-bar-fill {
-            float: left;
-            height: 100%;
-            width: 0%;
-            background: lightblue;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             display: flex;
+            justify-content: center;
             align-items: center;
-            transition: width 0.25s;
-            border-radius: 1.4em;
+            padding: 20px;
         }
 
-        .progress-bar-text {
-            margin-left: 10px;
-            font-weight: bold;
-        }
-
-        .azprogress {
-            position: relative;
-            height: 2em;
-            margin-bottom: 20px;
-            color: white;
-            overflow: hidden;
-            background-color: #111;
-            border-radius: 1.5em;
-            -webkit-box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1);
-            box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1);
-        }
-
-        .azprogress-bar {
-            float: left;
-            width: 0%;
-            height: 100%;
-            font-weight: bold;
-            margin-left: 0px;
-            line-height: 20px;
-            color: #fff;
-            display: flex;
-            align-items: center;
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 500px;
             text-align: center;
-            border-radius: 1.4em;
-            background-color: lightblue;
-            -webkit-box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.15);
-            box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.15);
-            -webkit-transition: width 0.6s ease;
-            -o-transition: width 0.6s ease;
-            transition: width 0.6s ease;
         }
 
-        .azprogress-bar-text {
-            margin-left: 10px;
-            font-weight: bold;
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+            font-weight: 600;
+            font-size: 2rem;
         }
 
-        #submitButton {
-            display: inline-block;
-            padding: 10px 20px;
-            margin-top: 20px;
-            font-size: 16px;
-            font-weight: bold;
-            text-align: center;
-            color: #fff;
-            background-color: #007bff;
-            border: none;
-            border-radius: 5px;
-            box-shadow: 0 5px 10px rgba(0, 0, 0, 0.2);
-            transition: all 0.2s ease-in-out;
+        .file-input-wrapper {
+            position: relative;
+            margin-bottom: 30px;
         }
 
-        #submitButton:hover {
-            background-color: #0069d9;
-            transform: translateY(-3px);
-        }
-
-        #fileInputContainer {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        #fileInputLabel {
-            background-color: #007bff;
-            color: #fff;
-            padding: 10px;
-            border-radius: 5px;
-            font-weight: bold;
-            cursor: pointer;
-        }
-
-        #fileInputLabel span:hover {
-            text-decoration: underline;
-        }
-
-        #myFile {
+        input[type="file"] {
             display: none;
         }
 
-        #fileName {
-            flex: 1;
-            padding: 10px;
-            border: none;
-            border-radius: 5px;
-            font-size: 16px;
-            background-color: #fff;
-            color: #333;
+        .file-input-label {
+            display: block;
+            padding: 15px 30px;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border-radius: 10px;
             cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 500;
+            margin-bottom: 15px;
         }
 
-        #fileName:focus {
-            outline: none;
+        .file-input-label:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
         }
 
-        #fileName:hover {
-            background-color: #eee;
+        .file-name {
+            color: #666;
+            font-size: 0.9rem;
+            margin-bottom: 20px;
+            min-height: 20px;
+        }
+
+        .upload-btn {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(45deg, #28a745, #20c997);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 20px;
+        }
+
+        .upload-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(40, 167, 69, 0.3);
+        }
+
+        .upload-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .progress-container {
+            margin: 20px 0;
+        }
+
+        .progress-label {
+            color: #666;
+            font-size: 0.9rem;
+            margin-bottom: 10px;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 30px;
+            background: #f0f0f0;
+            border-radius: 15px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            width: 0%;
+            transition: width 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            border-radius: 15px;
+        }
+
+        #response {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 10px;
+            background: #f8f9fa;
+            color: #495057;
+        }
+
+        .footer {
+            margin-top: 30px;
+            color: #999;
+            font-size: 0.8rem;
+        }
+
+        .footer a {
+            color: #667eea;
+            text-decoration: none;
+        }
+
+        .footer a:hover {
+            text-decoration: underline;
+        }
+
+        .file-size-info {
+            color: #999;
+            font-size: 0.8rem;
+            margin-top: 15px;
         }
     </style>
 </head>
 
 <body>
-    <center>
+    <div class="container">
+        <h1>Go Blob File Uploader</h1>
 
-        <h1>Go Blob File Uploader</h1><br />
-        <br />
+        <form id="uploadForm">
+            <div class="file-input-wrapper">
+                <input type="file" id="myFile" name="myFile">
+                <label for="myFile" class="file-input-label">Choose File</label>
+                <div class="file-name" id="fileName">No file selected</div>
+            </div>
 
-        <form id="uploadForm" class="upload-form">
-            <div>
-                <div id="fileInputContainer">
-                    <input type="text" id="fileName" placeholder="No file selected" disabled>
-                    <label for="myFile" id="fileInputLabel"><span>Browse</span></label>
-                    <input id="myFile" type="file" name="myFile">
-                    <br /><br>
-                    
+            <button type="submit" class="upload-btn" id="submitButton">Upload File</button>
+
+            <div class="progress-container">
+                <div class="progress-label">Upload Progress</div>
+                <div class="progress-bar">
+                    <div class="progress-bar-fill" id="progressBarFill">0%</div>
                 </div>
             </div>
-            <input id="submitButton" class="button" type="submit" value="Upload"><br /><br />
         </form>
-        <span>Buffer Cache Load Progress...</span>
-        <div class="progress-bar" id="progressBar">
-            <div class="progress-bar-fill">
-                <span class="progress-bar-text">0%</span>
-            </div>
-        </div>
-        <span>Azure Blob Upload Progress...</span>
-        <div class="azprogress">
-            <div class="azprogress-bar" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
-                <span class="azprogress-bar-text">0%</span>
-            </div>
-        </div>
+
         <div id="response"></div>
-        <script>
-            const fileNameInput = document.getElementById("fileName");
-            const fileInputLabel = document.getElementById("fileInputLabel");
-            const fInput = document.getElementById('myFile');
 
-            fInput.addEventListener("click", () => {
-                fInput.click();
-            });
+        <div class="footer">
+            <p>&copy; MaKI | <a href="https://github.com/patrikcze/go-blob" target="_blank">GitHub</a></p>
+            <div class="file-size-info">Maximum file size: 4GB</div>
+        </div>
+    </div>
 
-            fInput.addEventListener("change", () => {
-                const file = fInput.files[0];
-                if (file) {
-                    fileNameInput.value = file.name;
-                } else {
-                    fileNameInput.value = "";
-                }
-            });
+    <script>
+        const fileInput = document.getElementById('myFile');
+        const fileName = document.getElementById('fileName');
+        const uploadForm = document.getElementById('uploadForm');
+        const submitButton = document.getElementById('submitButton');
+        const progressBarFill = document.getElementById('progressBarFill');
+        const responseDiv = document.getElementById('response');
 
-        </script>
-        <script>
-            const uploadForm = document.getElementById("uploadForm");
-            const fileInput = document.getElementById('myFile');
-            const progressBarFill = document.querySelector("#progressBar > .progress-bar-fill");
-            const progressBarText = progressBarFill.querySelector(".progress-bar-text");
-            const responseDiv = document.getElementById("response");
+        // Handle file selection
+        fileInput.addEventListener('change', function() {
+            const file = this.files[0];
+            if (file) {
+                fileName.textContent = file.name + ' (' + formatFileSize(file.size) + ')';
+                submitButton.disabled = false;
+            } else {
+                fileName.textContent = 'No file selected';
+                submitButton.disabled = true;
+            }
+        });
 
-            // Change the event listener to listen for the "submit" event on the form, not the "click" event on the submit button
-            uploadForm.addEventListener('submit', (event) => {
-                event.preventDefault(); // Prevent the form from submitting normally and refreshing the page
+        // Format file size helper function
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
 
-                const maxFileSize = 512 * 1024 * 1024; // 512 MB
-                if (fileInput.files[0].size > maxFileSize) {
-                    alert("File size is too large. Please select a file that is smaller than 512 MB.");
-                    this.value = "";
-                    return;
-                }
+        // Handle form submission
+        uploadForm.addEventListener('submit', function(e) {
+            e.preventDefault();
 
-                // Get the selected file from the file input
-                const file = fileInput.files[0];
-                if (!file) {
-                    alert("Please select a file to upload.");
-                    return;
-                }
-
-                // Create a new FormData object and append the file to it
-                const formData = new FormData();
-                formData.append('myFile', file);
-
-                // Create a new XMLHttpRequest object to send the file via AJAX
-                const xhr = new XMLHttpRequest();
-
-                // Set up a progress listener to update the progress bar as the file uploads
-                xhr.upload.addEventListener("progress", updateProgressBar);
-
-                // Set up a listener to handle the server's response
-                xhr.onload = function () {
-                    if (xhr.status === 200) {
-                        const responseHtml = xhr.responseText;
-                        responseDiv.innerHTML = responseHtml;
-                        const downloadLink = responseDiv.querySelector("a[href*='blob.core.windows.net']").getAttribute("href");
-                        copyToClipboard(downloadLink);
-                        //alert(`Upload complete! Download link copied to clipboard!`);
-                    } else {
-                        alert("An error occurred while uploading the file.");
-                    }
-                };
-
-                // Open the connection to the server and send the file
-                xhr.open("POST", "/upload");
-                xhr.send(formData);
-
-            });
-
-            function updateProgressBar(progressEvent) {
-                const percent = progressEvent.lengthComputable ? (progressEvent.loaded / progressEvent.total) * 100 : 0;
-
-                progressBarFill.style.width = percent.toFixed(2) + "%";
-                progressBarText.textContent = "Loading..." + percent.toFixed(2) + "%";
-                console.log(progressEvent);
+            const file = fileInput.files[0];
+            if (!file) {
+                alert('Please select a file to upload.');
+                return;
             }
 
-        </script>
+            // Check file size (4GB limit)
+            const maxSize = 4 * 1024 * 1024 * 1024; // 4GB
+            if (file.size > maxSize) {
+                alert('File size exceeds 4GB limit. Please select a smaller file.');
+                return;
+            }
 
-        <!-- jQuery and AJAX library -->
-        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
-        <!-- JavaScript code to update the progress bar using AJAX -->
-        <script>
-            $(document).ready(function () {
-                var clicked = false;
-                var intervalId;
+            // Disable form during upload
+            submitButton.disabled = true;
+            submitButton.textContent = 'Uploading...';
 
-                // When the input submit button is clicked, set the flag to true
-                $('#submitButton').click(function () {
-                    clicked = true;
-                });
+            const formData = new FormData();
+            formData.append('myFile', file);
 
-                // Send an AJAX request to the server every second to update the progress bar
-                intervalId = setInterval(function () {
-                    // Only update the progress bar if the input submit button has been clicked
-                    if (clicked) {
-                        $.ajax({
-                            type: 'GET',
-                            url: '/progress',
-                            dataType: 'json',
-                            success: function (data) {
-                                // Update the progress bar with the latest progress percentage
-                                var progressBar = $('.azprogress-bar');
-                                var percentage = parseInt(data.Progress);
-                                progressBar.css('width', percentage + '%');
-                                progressBar.attr('aria-valuenow', percentage);
-                                progressBar.text('Upload ...' + percentage + '%');
-                                if (percentage >= 100) {
-                                    // Stop the interval if progress reaches 100
-                                    clearInterval(intervalId);
-                                }
-                            },
-                            error: function (xhr, status, error) {
-                                console.log('Error: ' + error);
-                            }
-                        });
-                    }
-                }, 1000);
+            const xhr = new XMLHttpRequest();
+
+            // Upload progress handler
+            xhr.upload.addEventListener('progress', function(e) {
+                if (e.lengthComputable) {
+                    const percentComplete = Math.round((e.loaded / e.total) * 100);
+                    progressBarFill.style.width = percentComplete + '%';
+                    progressBarFill.textContent = percentComplete + '%';
+                }
             });
-        </script>
 
-        Maximum file size is 512Mb!
-        <footer>
-            <p>&copy; MaKI | <a href="https://github.com/patrikcze/go-blob" target="_blank">Github</a></p>
-        </footer>
-    </center>
+            // Upload completion handler
+            xhr.addEventListener('load', function() {
+                submitButton.disabled = false;
+                submitButton.textContent = 'Upload File';
+
+                if (xhr.status === 200) {
+                    responseDiv.innerHTML = xhr.responseText;
+                    progressBarFill.style.width = '100%';
+                    progressBarFill.textContent = 'Complete!';
+                    
+                    // Try to extract and copy download link
+                    const links = responseDiv.querySelectorAll('a[href*="blob.core.windows.net"]');
+                    if (links.length > 0) {
+                        copyToClipboard(links[0].href);
+                    }
+                } else {
+                    responseDiv.innerHTML = '<div style="color: red;">Upload failed. Please try again.</div>';
+                    progressBarFill.style.width = '0%';
+                    progressBarFill.textContent = '0%';
+                }
+            });
+
+            // Upload error handler
+            xhr.addEventListener('error', function() {
+                submitButton.disabled = false;
+                submitButton.textContent = 'Upload File';
+                responseDiv.innerHTML = '<div style="color: red;">Upload failed. Please try again.</div>';
+                progressBarFill.style.width = '0%';
+                progressBarFill.textContent = '0%';
+            });
+
+            // Start upload
+            xhr.open('POST', '/upload', true);
+            xhr.send(formData);
+        });
+
+        // Initially disable submit button
+        submitButton.disabled = true;
+    </script>
 </body>
 
 </html>

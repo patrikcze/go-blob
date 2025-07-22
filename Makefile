@@ -1,14 +1,13 @@
 # Make variables
 APP=go-blob
-VERSION=0.1.3
+VERSION=1.0.2
 BUILD_TIME=$(shell date -u +%Y-%m-%dT%H:%M:%S.%NZ)
-DOCKER_ORG=mytestorg
+DOCKER_ORG=patrikcze
 
 # Docker image variables
 IMAGE=$(DOCKER_ORG)/$(APP)
 TAG=$(VERSION)
-REGISTRY=hub.docker.com
-
+REGISTRY=docker.io/$(DOCKER_ORG)
 # Golang binary variables
 CGO_ENABLED=0
 GOOS=$(shell uname -s | tr A-Z a-z)
@@ -21,7 +20,13 @@ build-app:
 
 .PHONY: docker-build
 docker-build: build-app
-	docker build --pull --build-arg APP=$(APP) --build-arg VERSION=$(VERSION) --build-arg BUILD_TIME=$(BUILD_TIME) --build-arg GOOS=$(GOOS) --build-arg GOARCH=$(GOARCH) -t $(REGISTRY)/$(IMAGE):$(TAG) .
+	docker buildx build \
+		--platform linux/amd64,linux/arm64 \
+		--build-arg APP=$(APP) \
+		--build-arg VERSION=$(VERSION) \
+		--build-arg BUILD_TIME=$(BUILD_TIME) \
+		--push \
+		-t $(IMAGE):$(TAG) .
     
 .PHONY: start
 start:
@@ -29,7 +34,7 @@ start:
 	-e AZURE_STORAGE_ACCOUNT_NAME=$$AZURE_STORAGE_ACCOUNT_NAME \
 	-e AZURE_STORAGE_ACCOUNT_KEY=$$AZURE_STORAGE_ACCOUNT_KEY \
 	-e AZURE_STORAGE_ACCOUNT_CONTAINER=$$AZURE_STORAGE_ACCOUNT_CONTAINER \
-	$(REGISTRY)/$(IMAGE):$(TAG)
+	$(IMAGE):$(TAG)
 
 .PHONY: stop
 stop:
@@ -40,4 +45,4 @@ clean:
 
 .PHONY: delete
 delete:
-	docker rmi $(REGISTRY)/$(IMAGE):$(TAG)
+	docker rmi $(IMAGE):$(TAG)
