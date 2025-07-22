@@ -1,5 +1,5 @@
 
-FROM reg.mini.dev/mini_dhn4qurcgjcjcvspyujpmzcfzkqdd6js/go
+FROM golang
 
 WORKDIR /app
 COPY . .
