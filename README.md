@@ -51,7 +51,7 @@ go build -o go-blob main.go
 ## Supported File Types
 - Images: `.jpg`, `.jpeg`, `.png`, `.gif`
 - Documents: `.pdf`, `.doc`, `.docx`, `.xls`, `.xlsx`, `.txt`, `.csv`
-- Archives: `.zip`
+- Archives: `.zip`, `.iso`, `.tgz`
 
 ## Configuration
 
