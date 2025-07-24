@@ -5,6 +5,9 @@
 This modernized version of the Go Blob File Uploader includes significant improvements to both the web interface and Go backend:
 
 ### 🎨 Web Interface Improvements
+
+![AI Modernized UI](images/goblob_modern.png)
+
 - **Modern Design**: Complete UI overhaul with gradient backgrounds and smooth animations
 - **Enhanced UX**: Better file selection feedback with file size display
 - **Real-time Progress**: Improved progress bars with smooth transitions
