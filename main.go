@@ -19,7 +19,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/sas"
-	"github.com/schollz/progressbar/v3"
 	"golang.org/x/time/rate"
 )
 
@@ -34,6 +33,46 @@ type UploadState struct {
 	Percentage    float64
 	FileSize      int64
 	mu            sync.Mutex
+}
+
+// progressReader wraps an io.Reader to track bytes read and report progress
+type progressReader struct {
+	r      io.Reader
+	total  int64
+	update func(int64)
+	read   int64
+}
+
+// Read implements io.Reader interface and tracks progress
+func (pr *progressReader) Read(p []byte) (int, error) {
+	n, err := pr.r.Read(p)
+	if n > 0 {
+		pr.read += int64(n)
+		pr.update(pr.read)
+	}
+	return n, err
+}
+
+// Seek implements io.Seeker interface by delegating to underlying reader if it supports seeking
+func (pr *progressReader) Seek(offset int64, whence int) (int64, error) {
+	if seeker, ok := pr.r.(io.Seeker); ok {
+		pos, err := seeker.Seek(offset, whence)
+		if err == nil {
+			// Reset read counter based on seek position
+			pr.read = pos
+			pr.update(pr.read)
+		}
+		return pos, err
+	}
+	return 0, fmt.Errorf("underlying reader does not support seeking")
+}
+
+// Close implements io.Closer interface by delegating to underlying reader if it supports closing
+func (pr *progressReader) Close() error {
+	if closer, ok := pr.r.(io.Closer); ok {
+		return closer.Close()
+	}
+	return nil
 }
 
 // Update updates the state of the upload with thread safety
@@ -504,87 +543,56 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 
-				u := fmt.Sprintf("https://%s.blob.core.windows.net/", appConfig.StorageAccountName)
-
-				// Create new client for AzBlob with Shared Key Credentials
-				client, err := azblob.NewClientWithSharedKeyCredential(u, credential, &azblob.ClientOptions{})
+				// Create Azure blob service client
+				serviceURL := fmt.Sprintf("https://%s.blob.core.windows.net/", appConfig.StorageAccountName)
+				serviceClient, err := azblob.NewClientWithSharedKeyCredential(serviceURL, credential, nil)
 				if err != nil {
-					handleError(w, "Error creating Azure Blob Client", err, http.StatusInternalServerError)
+					handleError(w, "Error creating Azure service client", err, http.StatusInternalServerError)
 					return
 				}
-				// Create progress bar with better options
-				// Create progress bar with better options
-				bar := progressbar.NewOptions64(
-					fileSize,
-					progressbar.OptionSetDescription("Uploading"),
-					progressbar.OptionShowBytes(true),
-					progressbar.OptionSetWidth(30),
-					progressbar.OptionShowCount(),
-					progressbar.OptionSpinnerType(14),
-					progressbar.OptionSetTheme(progressbar.Theme{
-						Saucer:        "=",
-						SaucerHead:    ">",
-						SaucerPadding: " ",
-						BarStart:      "[",
-						BarEnd:        "]",
-					}),
-				)
+
+				// Get container client and then block blob client
+				containerClient := serviceClient.ServiceClient().NewContainerClient(appConfig.StorageContainer)
+				blockBlobClient := containerClient.NewBlockBlobClient(fileName)
+
 				// Create context with timeout for the upload operation (extended for large files)
 				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 				defer cancel() // Ensure context resources are released
+				
+				// Upload with progress meter using resumable upload
 
 				// Upload with progress meter using resumable upload
 				var uploadErr error
 				if osFile != nil {
 					// Upload from temporary file (smaller files or dev mode)
-					_, uploadErr = client.UploadFile(ctx, appConfig.StorageContainer, fileName, osFile,
-						&azblob.UploadFileOptions{
-							BlockSize: BlockBlobMaxStageBlockBytes,
-							Progress: func(bytesTransferred int64) {
-								// Update the upload state with thread safety
-								uploadState.Update(bytesTransferred)
-
-								// Update the progress bar
-								percentage := uploadState.GetPercentage()
-								if barErr := bar.Set(int(percentage)); barErr != nil {
-									log.Printf("Error setting progress bar: %v", barErr)
-									// We can't return from this callback, so just log the error and continue
-									// The upload process should still proceed even if the progress bar fails
-								}
-							}, // Add closing brace and comma for the Progress function
-						})
+					progressFile := &progressReader{
+						r:      osFile,
+						total:  fileSize,
+						update: uploadState.Update,
+					}
+					_, uploadErr = blockBlobClient.Upload(ctx, progressFile, nil)
 				} else {
 					// Stream upload directly from multipart file (large files)
-					// Note: UploadStream doesn't support Progress callback, so we'll track manually
-					_, uploadErr = client.UploadStream(ctx, appConfig.StorageContainer, fileName, file,
-						&azblob.UploadStreamOptions{
-							BlockSize: BlockBlobMaxStageBlockBytes,
-						})
-					// For stream uploads, we can't track progress in real-time
-					// Set progress to 100% after successful upload
-					if uploadErr == nil {
-						uploadState.Update(fileSize)
-						if barErr := bar.Set(100); barErr != nil {
-							log.Printf("Error setting progress bar: %v", barErr)
-						}
+					// Create a progress-tracking reader wrapper
+					progressFile := &progressReader{
+						r:      file,
+						total:  fileSize,
+						update: uploadState.Update,
 					}
+					
+					_, uploadErr = blockBlobClient.Upload(ctx, progressFile, nil)
 				}
 				if uploadErr != nil {
-					handleError(w, "Error uploading file to Azure Storage", uploadErr, http.StatusInternalServerError)
+					handleError(w, "Error uploading file to Azure BlockBlob", uploadErr, http.StatusInternalServerError)
 					return
 				}
 				log.Printf("Uploaded %d bytes of %d (%.2f%%)",
 					uploadState.UploadedBytes, uploadState.FileSize, uploadState.GetPercentage())
 				expiryTime := time.Now().UTC().Add(1 * 24 * time.Hour) // Set Expire time 24 hours
 				startTime := time.Now().UTC()
-				// Setup Client
-				// Generate SAS URL for uploaded file
-				blobClient := client.ServiceClient().
-					NewContainerClient(appConfig.StorageContainer).
-					NewBlobClient(fileName)
 
 				// Generate SAS URL for uploaded file
-				s, err := blobClient.GetSASURL(sas.BlobPermissions{
+				s, err := blockBlobClient.GetSASURL(sas.BlobPermissions{
 					Read: true,
 				},
 					expiryTime,
