@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"html/template"
 	"io"
@@ -21,6 +22,12 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/sas"
 	"golang.org/x/time/rate"
+)
+
+// Version and BuildTime are set at build time using -ldflags
+var (
+	Version   = "dev"     // default value overridden by -ldflags
+	BuildTime = "unknown" // default value overridden by -ldflags
 )
 
 // Define a struct to hold the template data
@@ -74,13 +81,13 @@ func (pr *progressReader) Seek(offset int64, whence int) (int64, error) {
 func (pr *progressReader) Close() error {
 	pr.mu.Lock()
 	defer pr.mu.Unlock()
-	
+
 	// Prevent double-close
 	if pr.closed {
 		return nil
 	}
 	pr.closed = true
-	
+
 	if closer, ok := pr.r.(io.Closer); ok {
 		return closer.Close()
 	}
@@ -95,7 +102,7 @@ func (s *UploadState) Update(bytesTransferred int64) {
 	if s.FileSize > 0 {
 		s.Percentage = (float64(bytesTransferred) / float64(s.FileSize)) * 100
 	}
-	
+
 	// Broadcast progress only to clients connected with the current upload session
 	broadcastProgressToSession(currentUploadSession, ProgressUpdate{
 		Percentage:    s.Percentage,
@@ -141,13 +148,13 @@ var (
 
 // ProgressUpdate represents a progress update message
 type ProgressUpdate struct {
-	Percentage   float64 `json:"percentage"`
+	Percentage    float64 `json:"percentage"`
 	BytesUploaded int64   `json:"bytesUploaded"`
-	TotalBytes   int64   `json:"totalBytes"`
-	Speed        string  `json:"speed"`
-	ETA          string  `json:"eta"`
-	Status       string  `json:"status"`
-	Message      string  `json:"message"`
+	TotalBytes    int64   `json:"totalBytes"`
+	Speed         string  `json:"speed"`
+	ETA           string  `json:"eta"`
+	Status        string  `json:"status"`
+	Message       string  `json:"message"`
 }
 
 const (
@@ -286,6 +293,16 @@ func cleanupTempFiles() {
 	}
 }
 func main() {
+	// Parse command line flags
+	showVersion := flag.Bool("version", false, "Show version information")
+	flag.Parse()
+
+	// If version flag is set, print version and exit
+	if *showVersion {
+		fmt.Printf("Version: %s\nBuild time: %s\n", Version, BuildTime)
+		os.Exit(0)
+	}
+
 	// Set up proper logging
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 
@@ -332,22 +349,22 @@ func sanitizeFilename(filename string) string {
 	// Remove path separators and other dangerous characters
 	unsafeChars := regexp.MustCompile(`[<>:"/\\|?*\x00-\x1f]`)
 	sanitized := unsafeChars.ReplaceAllString(filename, "_")
-	
+
 	// Use only the base filename (no directory traversal)
 	sanitized = filepath.Base(sanitized)
-	
+
 	// Ensure filename is not empty after sanitization
 	if sanitized == "" || sanitized == "." || sanitized == ".." {
 		sanitized = "uploaded_file"
 	}
-	
+
 	// Limit filename length
 	if len(sanitized) > 200 {
 		ext := filepath.Ext(sanitized)
 		name := sanitized[:200-len(ext)]
 		sanitized = name + ext
 	}
-	
+
 	return sanitized
 }
 
@@ -368,14 +385,14 @@ func validateMimeType(file io.ReadSeeker, expectedExt string) (bool, error) {
 	if err != nil && err != io.EOF {
 		return false, err
 	}
-	
+
 	// Reset file position
 	if _, err := file.Seek(0, io.SeekStart); err != nil {
 		return false, err
 	}
-	
+
 	detectedType := http.DetectContentType(buffer[:n])
-	
+
 	// Define expected MIME types for extensions
 	expectedMimes := map[string][]string{
 		".jpg":  {"image/jpeg"},
@@ -398,19 +415,19 @@ func validateMimeType(file io.ReadSeeker, expectedExt string) (bool, error) {
 		".iso":  {"application/octet-stream"}, // ISO files are typically binary
 		".tgz":  {"application/gzip", "application/x-gzip"},
 	}
-	
+
 	mimeTypes, exists := expectedMimes[expectedExt]
 	if !exists {
 		// If we don't have MIME validation for this extension, allow it
 		return true, nil
 	}
-	
+
 	for _, mimeType := range mimeTypes {
 		if detectedType == mimeType {
 			return true, nil
 		}
 	}
-	
+
 	log.Printf("MIME type mismatch: detected %s for extension %s", detectedType, expectedExt)
 	return false, nil
 }
@@ -483,7 +500,7 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 		handleError(w, "Method not allowed", nil, http.StatusMethodNotAllowed)
 		return
 	}
-	
+
 	// Get session ID from form data or query parameters
 	sessionID := r.FormValue("sessionID")
 	if sessionID == "" {
@@ -493,7 +510,7 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 		handleError(w, "Session ID required", nil, http.StatusBadRequest)
 		return
 	}
-	
+
 	// Set the current upload session
 	currentUploadSession = sessionID
 
@@ -539,7 +556,7 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 			// Sanitize filename first
 			sanitizedFilename := sanitizeFilename(fileHeader.Filename)
 			log.Printf("Original filename: %s, Sanitized: %s", fileHeader.Filename, sanitizedFilename)
-			
+
 			// Validate file type based on sanitized filename
 			if valid, ext := validateFileType(sanitizedFilename); !valid {
 				handleError(w, fmt.Sprintf("File type '%s' not allowed", ext), nil, http.StatusBadRequest)
@@ -558,7 +575,7 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 				handleError(w, "Error opening file", err, http.StatusInternalServerError)
 				return
 			}
-			
+
 			// Validate MIME type - check if file content matches expected type
 			if readSeeker, ok := file.(io.ReadSeeker); ok {
 				if valid, err := validateMimeType(readSeeker, strings.ToLower(filepath.Ext(sanitizedFilename))); err != nil {
@@ -574,7 +591,7 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 
 			// Track whether the file will be closed by progressReader
 			var fileClosedByProgressReader bool
-			
+
 			// Use a defer with a named function for proper resource cleanup
 			defer func() {
 				// Only close the file if it wasn't wrapped in a progressReader
@@ -599,11 +616,11 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 			// For large files, stream directly to Azure without temporary file buffering
 			var tempFile string
 			var osFile *os.File
-			
+
 			// Only use temp file for dev mode or files smaller than 100MB
-				if appConfig.DevMode || fileHeader.Size < 100*1024*1024 {
-					// Create temporary file path using sanitized filename
-					tempFile = filepath.Join(appConfig.TempDir, sanitizedFilename)
+			if appConfig.DevMode || fileHeader.Size < 100*1024*1024 {
+				// Create temporary file path using sanitized filename
+				tempFile = filepath.Join(appConfig.TempDir, sanitizedFilename)
 
 				// Convert multipart.File to os.File
 				var err error
@@ -687,7 +704,7 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 				// Create context with timeout for the upload operation (extended for large files)
 				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 				defer cancel() // Ensure context resources are released
-				
+
 				// Upload with progress meter using resumable upload
 
 				// Upload with progress meter using resumable upload
@@ -710,7 +727,7 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 						update: uploadState.Update,
 					}
 					fileClosedByProgressReader = true
-					
+
 					_, uploadErr = blockBlobClient.Upload(ctx, progressFile, nil)
 				}
 				if uploadErr != nil {
@@ -776,13 +793,13 @@ func formatBytes(bytes int64) string {
 func broadcastProgressToSession(sessionID string, update ProgressUpdate) {
 	progressMutex.RLock()
 	defer progressMutex.RUnlock()
-	
+
 	// Get clients for this session
 	sessionClients, exists := progressClients[sessionID]
 	if !exists {
 		return
 	}
-	
+
 	for client := range sessionClients {
 		select {
 		case client <- update:
@@ -800,16 +817,16 @@ func progressStreamHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Session ID required", http.StatusBadRequest)
 		return
 	}
-	
+
 	// Set headers for SSE
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
-	
+
 	// Create a new client channel
 	client := make(chan ProgressUpdate, 10)
-	
+
 	// Add client to the session's client list
 	progressMutex.Lock()
 	if progressClients[sessionID] == nil {
@@ -817,7 +834,7 @@ func progressStreamHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	progressClients[sessionID][client] = true
 	progressMutex.Unlock()
-	
+
 	// Remove client when done
 	defer func() {
 		progressMutex.Lock()
@@ -831,12 +848,12 @@ func progressStreamHandler(w http.ResponseWriter, r *http.Request) {
 		close(client)
 		progressMutex.Unlock()
 	}()
-	
+
 	// Send initial status
 	uploadMutex.Lock()
 	isUploading := uploadInProgress
 	uploadMutex.Unlock()
-	
+
 	if !isUploading {
 		initialUpdate := ProgressUpdate{
 			Percentage: 0,
@@ -846,11 +863,11 @@ func progressStreamHandler(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "data: %s\n\n", toJSON(initialUpdate))
 		w.(http.Flusher).Flush()
 	}
-	
+
 	// Create a ticker for heartbeat messages to prevent Safari connection stalling
 	heartbeatTicker := time.NewTicker(15 * time.Second)
 	defer heartbeatTicker.Stop()
-	
+
 	// Listen for progress updates
 	for {
 		select {
