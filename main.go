@@ -41,6 +41,8 @@ type progressReader struct {
 	total  int64
 	update func(int64)
 	read   int64
+	closed bool
+	mu     sync.Mutex
 }
 
 // Read implements io.Reader interface and tracks progress
@@ -69,6 +71,15 @@ func (pr *progressReader) Seek(offset int64, whence int) (int64, error) {
 
 // Close implements io.Closer interface by delegating to underlying reader if it supports closing
 func (pr *progressReader) Close() error {
+	pr.mu.Lock()
+	defer pr.mu.Unlock()
+	
+	// Prevent double-close
+	if pr.closed {
+		return nil
+	}
+	pr.closed = true
+	
 	if closer, ok := pr.r.(io.Closer); ok {
 		return closer.Close()
 	}
@@ -84,8 +95,8 @@ func (s *UploadState) Update(bytesTransferred int64) {
 		s.Percentage = (float64(bytesTransferred) / float64(s.FileSize)) * 100
 	}
 	
-	// Broadcast progress to all connected SSE clients
-	broadcastProgress(ProgressUpdate{
+	// Broadcast progress only to clients connected with the current upload session
+	broadcastProgressToSession(currentUploadSession, ProgressUpdate{
 		Percentage:    s.Percentage,
 		BytesUploaded: bytesTransferred,
 		TotalBytes:    s.FileSize,
@@ -120,9 +131,11 @@ var (
 	uploadLimiter    *rate.Limiter
 	uploadMutex      sync.Mutex // Mutex for controlling concurrent uploads
 	uploadInProgress bool
-	// SSE channels for real-time progress updates
-	progressClients = make(map[chan ProgressUpdate]bool)
+	// SSE channels for real-time progress updates - organized by session ID
+	progressClients = make(map[string]map[chan ProgressUpdate]bool)
 	progressMutex   sync.RWMutex
+	// Current upload session
+	currentUploadSession string
 )
 
 // ProgressUpdate represents a progress update message
@@ -390,6 +403,19 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 		handleError(w, "Method not allowed", nil, http.StatusMethodNotAllowed)
 		return
 	}
+	
+	// Get session ID from form data or query parameters
+	sessionID := r.FormValue("sessionID")
+	if sessionID == "" {
+		sessionID = r.URL.Query().Get("sessionID")
+	}
+	if sessionID == "" {
+		handleError(w, "Session ID required", nil, http.StatusBadRequest)
+		return
+	}
+	
+	// Set the current upload session
+	currentUploadSession = sessionID
 
 	// Apply rate limiting
 	if !uploadLimiter.Allow() {
@@ -449,10 +475,16 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
+			// Track whether the file will be closed by progressReader
+			var fileClosedByProgressReader bool
+			
 			// Use a defer with a named function for proper resource cleanup
 			defer func() {
-				if err := safeClose(file, "uploaded file"); err != nil {
-					log.Printf("Failed to close uploaded file: %v", err)
+				// Only close the file if it wasn't wrapped in a progressReader
+				if !fileClosedByProgressReader {
+					if err := safeClose(file, "uploaded file"); err != nil {
+						log.Printf("Failed to close uploaded file: %v", err)
+					}
 				}
 			}()
 			// Get Filename and File size from input file
@@ -641,12 +673,18 @@ func formatBytes(bytes int64) string {
 	return fmt.Sprintf("%.2f %s", floatBytes, sizes[i])
 }
 
-// broadcastProgress sends progress updates to all connected SSE clients
-func broadcastProgress(update ProgressUpdate) {
+// broadcastProgressToSession sends progress updates to SSE clients connected with a specific session ID
+func broadcastProgressToSession(sessionID string, update ProgressUpdate) {
 	progressMutex.RLock()
 	defer progressMutex.RUnlock()
 	
-	for client := range progressClients {
+	// Get clients for this session
+	sessionClients, exists := progressClients[sessionID]
+	if !exists {
+		return
+	}
+	
+	for client := range sessionClients {
 		select {
 		case client <- update:
 		default:
@@ -657,6 +695,13 @@ func broadcastProgress(update ProgressUpdate) {
 
 // progressStreamHandler handles Server-Sent Events for real-time progress updates
 func progressStreamHandler(w http.ResponseWriter, r *http.Request) {
+	// Get session ID from query parameters
+	sessionID := r.URL.Query().Get("sessionID")
+	if sessionID == "" {
+		http.Error(w, "Session ID required", http.StatusBadRequest)
+		return
+	}
+	
 	// Set headers for SSE
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
@@ -666,15 +711,24 @@ func progressStreamHandler(w http.ResponseWriter, r *http.Request) {
 	// Create a new client channel
 	client := make(chan ProgressUpdate, 10)
 	
-	// Add client to the list
+	// Add client to the session's client list
 	progressMutex.Lock()
-	progressClients[client] = true
+	if progressClients[sessionID] == nil {
+		progressClients[sessionID] = make(map[chan ProgressUpdate]bool)
+	}
+	progressClients[sessionID][client] = true
 	progressMutex.Unlock()
 	
 	// Remove client when done
 	defer func() {
 		progressMutex.Lock()
-		delete(progressClients, client)
+		if sessionClients, exists := progressClients[sessionID]; exists {
+			delete(sessionClients, client)
+			// Clean up empty session maps
+			if len(sessionClients) == 0 {
+				delete(progressClients, sessionID)
+			}
+		}
 		close(client)
 		progressMutex.Unlock()
 	}()
@@ -694,11 +748,19 @@ func progressStreamHandler(w http.ResponseWriter, r *http.Request) {
 		w.(http.Flusher).Flush()
 	}
 	
+	// Create a ticker for heartbeat messages to prevent Safari connection stalling
+	heartbeatTicker := time.NewTicker(15 * time.Second)
+	defer heartbeatTicker.Stop()
+	
 	// Listen for progress updates
 	for {
 		select {
 		case update := <-client:
 			fmt.Fprintf(w, "data: %s\n\n", toJSON(update))
+			w.(http.Flusher).Flush()
+		case <-heartbeatTicker.C:
+			// Send heartbeat comment to keep connection alive (Safari compatibility)
+			fmt.Fprintf(w, ": heartbeat\n\n")
 			w.(http.Flusher).Flush()
 		case <-r.Context().Done():
 			return

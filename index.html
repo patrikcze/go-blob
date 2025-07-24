@@ -241,6 +241,11 @@
         const responseDiv = document.getElementById('response');
         
         let eventSource = null;
+        let sessionID = null;
+
+        function generateSessionID() {
+            return 'sess-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+        }
 
         // Handle file selection
         fileInput.addEventListener('change', function() {
@@ -269,7 +274,11 @@
                 eventSource.close();
             }
             
-            eventSource = new EventSource('/progress-stream');
+            if (!sessionID) {
+                sessionID = generateSessionID();
+            }
+            
+            eventSource = new EventSource('/progress-stream?sessionID=' + encodeURIComponent(sessionID));
             
             eventSource.onmessage = function(event) {
                 try {
@@ -346,6 +355,9 @@
 
             const formData = new FormData();
             formData.append('myFile', file);
+            if (sessionID) {
+                formData.append('sessionID', sessionID);
+            }
 
             const xhr = new XMLHttpRequest();
 
