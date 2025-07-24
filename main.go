@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -326,6 +327,30 @@ func handleError(w http.ResponseWriter, msg string, err error, statusCode int) {
 	http.Error(w, msg, statusCode)
 }
 
+// sanitizeFilename removes potentially dangerous characters from filename
+func sanitizeFilename(filename string) string {
+	// Remove path separators and other dangerous characters
+	unsafeChars := regexp.MustCompile(`[<>:"/\\|?*\x00-\x1f]`)
+	sanitized := unsafeChars.ReplaceAllString(filename, "_")
+	
+	// Use only the base filename (no directory traversal)
+	sanitized = filepath.Base(sanitized)
+	
+	// Ensure filename is not empty after sanitization
+	if sanitized == "" || sanitized == "." || sanitized == ".." {
+		sanitized = "uploaded_file"
+	}
+	
+	// Limit filename length
+	if len(sanitized) > 200 {
+		ext := filepath.Ext(sanitized)
+		name := sanitized[:200-len(ext)]
+		sanitized = name + ext
+	}
+	
+	return sanitized
+}
+
 // validateFileType checks if the provided file extension is allowed
 // Returns a bool indicating if the type is allowed and the extension string
 func validateFileType(filename string) (bool, string) {
@@ -333,6 +358,61 @@ func validateFileType(filename string) (bool, string) {
 	allowed := appConfig.AllowedFileTypes[ext]
 	log.Printf("File type validation: %s is %v", ext, allowed)
 	return allowed, ext
+}
+
+// validateMimeType checks if the file content matches expected MIME type
+func validateMimeType(file io.ReadSeeker, expectedExt string) (bool, error) {
+	// Read first 512 bytes for MIME detection
+	buffer := make([]byte, 512)
+	n, err := file.Read(buffer)
+	if err != nil && err != io.EOF {
+		return false, err
+	}
+	
+	// Reset file position
+	if _, err := file.Seek(0, io.SeekStart); err != nil {
+		return false, err
+	}
+	
+	detectedType := http.DetectContentType(buffer[:n])
+	
+	// Define expected MIME types for extensions
+	expectedMimes := map[string][]string{
+		".jpg":  {"image/jpeg"},
+		".jpeg": {"image/jpeg"},
+		".png":  {"image/png"},
+		".gif":  {"image/gif"},
+		".pdf":  {"application/pdf"},
+		".txt":  {"text/plain"},
+		".csv":  {"text/csv", "text/plain"},
+		".zip":  {"application/zip"},
+		".gz":   {"application/gzip", "application/x-gzip"},
+		".tar":  {"application/x-tar"},
+		".7z":   {"application/x-7z-compressed"},
+		// Office documents might be detected as application/octet-stream
+		".doc":  {"application/msword", "application/octet-stream"},
+		".docx": {"application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/octet-stream"},
+		".xls":  {"application/vnd.ms-excel", "application/octet-stream"},
+		".xlsx": {"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "application/octet-stream"},
+		".mp4":  {"video/mp4"},
+		".iso":  {"application/octet-stream"}, // ISO files are typically binary
+		".tgz":  {"application/gzip", "application/x-gzip"},
+	}
+	
+	mimeTypes, exists := expectedMimes[expectedExt]
+	if !exists {
+		// If we don't have MIME validation for this extension, allow it
+		return true, nil
+	}
+	
+	for _, mimeType := range mimeTypes {
+		if detectedType == mimeType {
+			return true, nil
+		}
+	}
+	
+	log.Printf("MIME type mismatch: detected %s for extension %s", detectedType, expectedExt)
+	return false, nil
 }
 
 // validateFileSize checks if the file size is within the allowed limits
@@ -456,8 +536,12 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 	// Process the uploaded files
 	for _, fileHeaders := range r.MultipartForm.File {
 		for _, fileHeader := range fileHeaders {
-			// Validate file type
-			if valid, ext := validateFileType(fileHeader.Filename); !valid {
+			// Sanitize filename first
+			sanitizedFilename := sanitizeFilename(fileHeader.Filename)
+			log.Printf("Original filename: %s, Sanitized: %s", fileHeader.Filename, sanitizedFilename)
+			
+			// Validate file type based on sanitized filename
+			if valid, ext := validateFileType(sanitizedFilename); !valid {
 				handleError(w, fmt.Sprintf("File type '%s' not allowed", ext), nil, http.StatusBadRequest)
 				return
 			}
@@ -474,6 +558,19 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 				handleError(w, "Error opening file", err, http.StatusInternalServerError)
 				return
 			}
+			
+			// Validate MIME type - check if file content matches expected type
+			if readSeeker, ok := file.(io.ReadSeeker); ok {
+				if valid, err := validateMimeType(readSeeker, strings.ToLower(filepath.Ext(sanitizedFilename))); err != nil {
+					handleError(w, "Error validating file content", err, http.StatusInternalServerError)
+					return
+				} else if !valid {
+					handleError(w, "File content does not match expected file type", nil, http.StatusBadRequest)
+					return
+				}
+			} else {
+				log.Printf("Warning: Cannot validate MIME type - file does not support seeking")
+			}
 
 			// Track whether the file will be closed by progressReader
 			var fileClosedByProgressReader bool
@@ -487,10 +584,10 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 					}
 				}
 			}()
-			// Get Filename and File size from input file
+			// Get Filename and File size from input file - use sanitized filename
 			var fileSize int64 = fileHeader.Size
-			var fileName string = fileHeader.Filename
-			log.Printf("Received file: %s, size: %d\n", fileName, fileSize)
+			var fileName string = sanitizedFilename
+			log.Printf("Received file: %s (original: %s), size: %d\n", fileName, fileHeader.Filename, fileSize)
 
 			// Initialize upload state
 			uploadState = UploadState{
@@ -504,9 +601,9 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 			var osFile *os.File
 			
 			// Only use temp file for dev mode or files smaller than 100MB
-			if appConfig.DevMode || fileHeader.Size < 100*1024*1024 {
-				// Create temporary file path
-				tempFile = filepath.Join(appConfig.TempDir, fileHeader.Filename)
+				if appConfig.DevMode || fileHeader.Size < 100*1024*1024 {
+					// Create temporary file path using sanitized filename
+					tempFile = filepath.Join(appConfig.TempDir, sanitizedFilename)
 
 				// Convert multipart.File to os.File
 				var err error
