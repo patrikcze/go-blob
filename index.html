@@ -137,6 +137,37 @@
             border-radius: 15px;
         }
 
+        .progress-details {
+            margin-top: 10px;
+            font-size: 0.8rem;
+            color: #666;
+        }
+
+        .upload-status {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 0.9rem;
+        }
+
+        .status-uploading {
+            background: #e3f2fd;
+            color: #1976d2;
+            border: 1px solid #bbdefb;
+        }
+
+        .status-complete {
+            background: #e8f5e8;
+            color: #2e7d32;
+            border: 1px solid #c8e6c9;
+        }
+
+        .status-error {
+            background: #ffebee;
+            color: #c62828;
+            border: 1px solid #ffcdd2;
+        }
+
         #response {
             margin-top: 20px;
             padding: 15px;
@@ -186,6 +217,8 @@
                 <div class="progress-bar">
                     <div class="progress-bar-fill" id="progressBarFill">0%</div>
                 </div>
+                <div class="progress-details" id="progressDetails">Ready to upload</div>
+                <div class="upload-status" id="uploadStatus" style="display: none;"></div>
             </div>
         </form>
 
@@ -203,7 +236,11 @@
         const uploadForm = document.getElementById('uploadForm');
         const submitButton = document.getElementById('submitButton');
         const progressBarFill = document.getElementById('progressBarFill');
+        const progressDetails = document.getElementById('progressDetails');
+        const uploadStatus = document.getElementById('uploadStatus');
         const responseDiv = document.getElementById('response');
+        
+        let eventSource = null;
 
         // Handle file selection
         fileInput.addEventListener('change', function() {
@@ -226,6 +263,59 @@
             return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
         }
 
+        // Initialize Server-Sent Events for real-time progress
+        function initProgressStream() {
+            if (eventSource) {
+                eventSource.close();
+            }
+            
+            eventSource = new EventSource('/progress-stream');
+            
+            eventSource.onmessage = function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    updateProgress(data);
+                } catch (e) {
+                    console.error('Error parsing progress data:', e);
+                }
+            };
+            
+            eventSource.onerror = function(event) {
+                console.error('EventSource failed:', event);
+            };
+        }
+        
+        // Update progress display
+        function updateProgress(data) {
+            const percentage = Math.round(data.percentage || 0);
+            progressBarFill.style.width = percentage + '%';
+            progressBarFill.textContent = percentage + '%';
+            
+            if (data.message) {
+                progressDetails.textContent = data.message;
+            }
+            
+            // Update status display
+            if (data.status) {
+                uploadStatus.style.display = 'block';
+                uploadStatus.className = 'upload-status status-' + data.status;
+                
+                switch(data.status) {
+                    case 'uploading':
+                        uploadStatus.textContent = 'Uploading to Azure Blob Storage...';
+                        break;
+                    case 'complete':
+                        uploadStatus.textContent = 'Upload completed successfully!';
+                        break;
+                    case 'error':
+                        uploadStatus.textContent = 'Upload failed. Please try again.';
+                        break;
+                    default:
+                        uploadStatus.textContent = data.message || 'Processing...';
+                }
+            }
+        }
+        
         // Handle form submission
         uploadForm.addEventListener('submit', function(e) {
             e.preventDefault();
@@ -243,6 +333,13 @@
                 return;
             }
 
+            // Reset progress display
+            progressBarFill.style.width = '0%';
+            progressBarFill.textContent = '0%';
+            progressDetails.textContent = 'Starting upload...';
+            uploadStatus.style.display = 'none';
+            responseDiv.innerHTML = '';
+
             // Disable form during upload
             submitButton.disabled = true;
             submitButton.textContent = 'Uploading...';
@@ -252,12 +349,17 @@
 
             const xhr = new XMLHttpRequest();
 
-            // Upload progress handler
+            // Track upload progress to server
             xhr.upload.addEventListener('progress', function(e) {
                 if (e.lengthComputable) {
-                    const percentComplete = Math.round((e.loaded / e.total) * 100);
-                    progressBarFill.style.width = percentComplete + '%';
-                    progressBarFill.textContent = percentComplete + '%';
+                    const percentage = Math.round((e.loaded / e.total) * 100);
+                    progressBarFill.style.width = percentage + '%';
+                    progressBarFill.textContent = percentage + '%';
+                    progressDetails.textContent = `Uploading to server: ${formatFileSize(e.loaded)} / ${formatFileSize(e.total)}`;
+                    
+                    uploadStatus.style.display = 'block';
+                    uploadStatus.className = 'upload-status status-uploading';
+                    uploadStatus.textContent = 'Uploading file to server...';
                 }
             });
 
@@ -268,8 +370,9 @@
 
                 if (xhr.status === 200) {
                     responseDiv.innerHTML = xhr.responseText;
-                    progressBarFill.style.width = '100%';
-                    progressBarFill.textContent = 'Complete!';
+                    uploadStatus.className = 'upload-status status-complete';
+                    uploadStatus.textContent = 'Upload completed successfully!';
+                    uploadStatus.style.display = 'block';
                     
                     // Try to extract and copy download link
                     const links = responseDiv.querySelectorAll('a[href*="blob.core.windows.net"]');
@@ -278,6 +381,9 @@
                     }
                 } else {
                     responseDiv.innerHTML = '<div style="color: red;">Upload failed. Please try again.</div>';
+                    uploadStatus.className = 'upload-status status-error';
+                    uploadStatus.textContent = 'Upload failed. Please try again.';
+                    uploadStatus.style.display = 'block';
                     progressBarFill.style.width = '0%';
                     progressBarFill.textContent = '0%';
                 }
@@ -288,6 +394,9 @@
                 submitButton.disabled = false;
                 submitButton.textContent = 'Upload File';
                 responseDiv.innerHTML = '<div style="color: red;">Upload failed. Please try again.</div>';
+                uploadStatus.className = 'upload-status status-error';
+                uploadStatus.textContent = 'Upload failed. Please try again.';
+                uploadStatus.style.display = 'block';
                 progressBarFill.style.width = '0%';
                 progressBarFill.textContent = '0%';
             });
@@ -299,6 +408,16 @@
 
         // Initially disable submit button
         submitButton.disabled = true;
+        
+        // Initialize progress stream when page loads
+        initProgressStream();
+        
+        // Reconnect progress stream if connection is lost
+        window.addEventListener('beforeunload', function() {
+            if (eventSource) {
+                eventSource.close();
+            }
+        });
     </script>
 </body>
 

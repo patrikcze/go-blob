@@ -44,6 +44,15 @@ func (s *UploadState) Update(bytesTransferred int64) {
 	if s.FileSize > 0 {
 		s.Percentage = (float64(bytesTransferred) / float64(s.FileSize)) * 100
 	}
+	
+	// Broadcast progress to all connected SSE clients
+	broadcastProgress(ProgressUpdate{
+		Percentage:    s.Percentage,
+		BytesUploaded: bytesTransferred,
+		TotalBytes:    s.FileSize,
+		Status:        "uploading",
+		Message:       fmt.Sprintf("Uploaded %s of %s", formatBytes(bytesTransferred), formatBytes(s.FileSize)),
+	})
 }
 
 // GetPercentage returns the current percentage with thread safety
@@ -72,11 +81,28 @@ var (
 	uploadLimiter    *rate.Limiter
 	uploadMutex      sync.Mutex // Mutex for controlling concurrent uploads
 	uploadInProgress bool
+	// SSE channels for real-time progress updates
+	progressClients = make(map[chan ProgressUpdate]bool)
+	progressMutex   sync.RWMutex
 )
 
+// ProgressUpdate represents a progress update message
+type ProgressUpdate struct {
+	Percentage   float64 `json:"percentage"`
+	BytesUploaded int64   `json:"bytesUploaded"`
+	TotalBytes   int64   `json:"totalBytes"`
+	Speed        string  `json:"speed"`
+	ETA          string  `json:"eta"`
+	Status       string  `json:"status"`
+	Message      string  `json:"message"`
+}
+
 const (
-	// Set request size to support up to 4 GB
-	maxRequestSize = 4 * 1024 * 1024 * 1024
+	// Set max file size to support up to 4 GB
+	maxFileSize = 4 * 1024 * 1024 * 1024
+
+	// Set multipart form memory to a reasonable size (32MB)
+	maxFormMemory = 32 * 1024 * 1024
 
 	// MinFileSize indicates the minimum allowed file size (1KB)
 	minFileSize = 1 * 1024
@@ -135,7 +161,7 @@ func init() {
 		TempDir:          "temp",
 		AllowedFileTypes: allowedTypes,
 		MinFileSize:      minFileSize,
-		MaxFileSize:      maxRequestSize,
+		MaxFileSize:      maxFileSize,
 		DevMode:          devMode,
 	}
 	// Only check Azure credentials if not in dev mode
@@ -221,6 +247,7 @@ func main() {
 	http.HandleFunc("/", handleGet)
 	http.HandleFunc("/upload", handlePost)
 	http.HandleFunc("/progress", progressHandler)
+	http.HandleFunc("/progress-stream", progressStreamHandler)
 
 	// Start the server
 	fmt.Println("Starting server on port 9000...")
@@ -349,11 +376,11 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 		uploadMutex.Unlock()
 	}()
 	// Limit the size of the request body to prevent denial of service attacks
-	r.Body = http.MaxBytesReader(w, r.Body, maxRequestSize)
-	log.Printf("Setting buffer size to : %v (bytes)", maxRequestSize)
+	r.Body = http.MaxBytesReader(w, r.Body, maxFileSize)
+	log.Printf("Setting form memory buffer to: %v bytes", maxFormMemory)
 
-	// Parse multipart form
-	if err := r.ParseMultipartForm(maxRequestSize); err != nil {
+	// Parse multipart form with reasonable memory limit
+	if err := r.ParseMultipartForm(maxFormMemory); err != nil {
 		if err.Error() == "http: request body too large" {
 			handleError(w, "File size limit exceeded", err, http.StatusBadRequest)
 			return
@@ -401,60 +428,68 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 				FileSize:      fileSize,
 			}
 
-			// Create temporary file path
-			tempFile := filepath.Join(appConfig.TempDir, fileHeader.Filename)
+			// For large files, stream directly to Azure without temporary file buffering
+			var tempFile string
+			var osFile *os.File
+			
+			// Only use temp file for dev mode or files smaller than 100MB
+			if appConfig.DevMode || fileHeader.Size < 100*1024*1024 {
+				// Create temporary file path
+				tempFile = filepath.Join(appConfig.TempDir, fileHeader.Filename)
 
-			// Convert multipart.File to os.File
-			osFile, err := os.Create(tempFile)
-			if err != nil {
-				handleError(w, "Error creating temporary file", err, http.StatusInternalServerError)
-				return
-			}
-			// Setup defers for cleanup in the right order (last in, first out)
-			defer func() {
-				// Only clean up temp files if not in dev mode
-				if !appConfig.DevMode {
-					cleanupTempFile(tempFile)
-				} else {
-					log.Printf("Dev mode: Keeping temporary file %s", tempFile)
-				}
-			}()
-			defer func() {
-				if err := safeClose(osFile, "temp file"); err != nil {
-					log.Printf("Failed to close temp file: %v", err)
-				}
-			}()
-			// Stream the file to temporary storage in chunks
-			totalSize := fileHeader.Size
-			var uploadedSize int64
-			buf := make([]byte, 256*1024) // 256KB buffer
-			for {
-				// Read a chunk
-				n, err := file.Read(buf)
-				if err != nil && err != io.EOF {
-					handleError(w, "Error reading file", err, http.StatusInternalServerError)
+				// Convert multipart.File to os.File
+				var err error
+				osFile, err = os.Create(tempFile)
+				if err != nil {
+					handleError(w, "Error creating temporary file", err, http.StatusInternalServerError)
 					return
 				}
-				if n == 0 {
-					break
+				// Setup defers for cleanup in the right order (last in, first out)
+				defer func() {
+					// Only clean up temp files if not in dev mode
+					if !appConfig.DevMode {
+						cleanupTempFile(tempFile)
+					} else {
+						log.Printf("Dev mode: Keeping temporary file %s", tempFile)
+					}
+				}()
+				defer func() {
+					if err := safeClose(osFile, "temp file"); err != nil {
+						log.Printf("Failed to close temp file: %v", err)
+					}
+				}()
+				// Stream the file to temporary storage in chunks
+				totalSize := fileHeader.Size
+				var uploadedSize int64
+				buf := make([]byte, 256*1024) // 256KB buffer
+				for {
+					// Read a chunk
+					n, err := file.Read(buf)
+					if err != nil && err != io.EOF {
+						handleError(w, "Error reading file", err, http.StatusInternalServerError)
+						return
+					}
+					if n == 0 {
+						break
+					}
+
+					// Write the chunk to the temporary file
+					if _, err := osFile.Write(buf[:n]); err != nil {
+						handleError(w, "Error writing to temporary file", err, http.StatusInternalServerError)
+						return
+					}
+
+					// Update the uploaded size
+					uploadedSize += int64(n)
+					percentage := (float64(uploadedSize) / float64(totalSize)) * 100
+					log.Printf("Cached %d bytes of %d (%.2f%%)", uploadedSize, totalSize, percentage)
 				}
 
-				// Write the chunk to the temporary file
-				if _, err := osFile.Write(buf[:n]); err != nil {
-					handleError(w, "Error writing to temporary file", err, http.StatusInternalServerError)
+				// Seek back to beginning of file for upload
+				if _, err := osFile.Seek(0, io.SeekStart); err != nil {
+					handleError(w, "Error preparing file for upload", err, http.StatusInternalServerError)
 					return
 				}
-
-				// Update the uploaded size
-				uploadedSize += int64(n)
-				percentage := (float64(uploadedSize) / float64(totalSize)) * 100
-				log.Printf("Cached %d bytes of %d (%.2f%%)", uploadedSize, totalSize, percentage)
-			}
-
-			// Seek back to beginning of file for upload
-			if _, err := osFile.Seek(0, io.SeekStart); err != nil {
-				handleError(w, "Error preparing file for upload", err, http.StatusInternalServerError)
-				return
 			}
 			// Check if we're in dev mode or should use Azure
 			if !appConfig.DevMode {
@@ -499,24 +534,43 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 				defer cancel() // Ensure context resources are released
 
 				// Upload with progress meter using resumable upload
-				_, err = client.UploadFile(ctx, appConfig.StorageContainer, fileName, osFile,
-					&azblob.UploadFileOptions{
-						BlockSize: BlockBlobMaxStageBlockBytes,
-						Progress: func(bytesTransferred int64) {
-							// Update the upload state with thread safety
-							uploadState.Update(bytesTransferred)
+				var uploadErr error
+				if osFile != nil {
+					// Upload from temporary file (smaller files or dev mode)
+					_, uploadErr = client.UploadFile(ctx, appConfig.StorageContainer, fileName, osFile,
+						&azblob.UploadFileOptions{
+							BlockSize: BlockBlobMaxStageBlockBytes,
+							Progress: func(bytesTransferred int64) {
+								// Update the upload state with thread safety
+								uploadState.Update(bytesTransferred)
 
-							// Update the progress bar
-							percentage := uploadState.GetPercentage()
-							if err := bar.Set(int(percentage)); err != nil {
-								log.Printf("Error setting progress bar: %v", err)
-								// We can't return from this callback, so just log the error and continue
-								// The upload process should still proceed even if the progress bar fails
-							}
-						}, // Add closing brace and comma for the Progress function
-					})
-				if err != nil {
-					handleError(w, "Error uploading file to Azure Storage", err, http.StatusInternalServerError)
+								// Update the progress bar
+								percentage := uploadState.GetPercentage()
+								if barErr := bar.Set(int(percentage)); barErr != nil {
+									log.Printf("Error setting progress bar: %v", barErr)
+									// We can't return from this callback, so just log the error and continue
+									// The upload process should still proceed even if the progress bar fails
+								}
+							}, // Add closing brace and comma for the Progress function
+						})
+				} else {
+					// Stream upload directly from multipart file (large files)
+					// Note: UploadStream doesn't support Progress callback, so we'll track manually
+					_, uploadErr = client.UploadStream(ctx, appConfig.StorageContainer, fileName, file,
+						&azblob.UploadStreamOptions{
+							BlockSize: BlockBlobMaxStageBlockBytes,
+						})
+					// For stream uploads, we can't track progress in real-time
+					// Set progress to 100% after successful upload
+					if uploadErr == nil {
+						uploadState.Update(fileSize)
+						if barErr := bar.Set(100); barErr != nil {
+							log.Printf("Error setting progress bar: %v", barErr)
+						}
+					}
+				}
+				if uploadErr != nil {
+					handleError(w, "Error uploading file to Azure Storage", uploadErr, http.StatusInternalServerError)
 					return
 				}
 				log.Printf("Uploaded %d bytes of %d (%.2f%%)",
@@ -552,12 +606,106 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("Content-Type", "text/html; charset=utf-8")
 				w.WriteHeader(http.StatusOK)
 				fmt.Fprintf(w, "<h3>File %s uploaded successfully (Dev Mode)!</h3><br />", fileName)
-				fmt.Fprintf(w, "File stored at: %s<br />", tempFile)
+				if tempFile != "" {
+					fmt.Fprintf(w, "File stored at: %s<br />", tempFile)
+				} else {
+					fmt.Fprintf(w, "File processed (stream mode)<br />")
+				}
 				// File won't be cleaned up in dev mode due to the defer condition above
 			}
 		}
 	}
 } // End of handlePost function
+
+// formatBytes formats bytes into human readable format
+func formatBytes(bytes int64) string {
+	if bytes == 0 {
+		return "0 B"
+	}
+	const unit = 1024
+	sizes := []string{"B", "KB", "MB", "GB", "TB"}
+	i := 0
+	floatBytes := float64(bytes)
+	for floatBytes >= unit && i < len(sizes)-1 {
+		floatBytes /= unit
+		i++
+	}
+	return fmt.Sprintf("%.2f %s", floatBytes, sizes[i])
+}
+
+// broadcastProgress sends progress updates to all connected SSE clients
+func broadcastProgress(update ProgressUpdate) {
+	progressMutex.RLock()
+	defer progressMutex.RUnlock()
+	
+	for client := range progressClients {
+		select {
+		case client <- update:
+		default:
+			// Client channel is full, skip
+		}
+	}
+}
+
+// progressStreamHandler handles Server-Sent Events for real-time progress updates
+func progressStreamHandler(w http.ResponseWriter, r *http.Request) {
+	// Set headers for SSE
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	
+	// Create a new client channel
+	client := make(chan ProgressUpdate, 10)
+	
+	// Add client to the list
+	progressMutex.Lock()
+	progressClients[client] = true
+	progressMutex.Unlock()
+	
+	// Remove client when done
+	defer func() {
+		progressMutex.Lock()
+		delete(progressClients, client)
+		close(client)
+		progressMutex.Unlock()
+	}()
+	
+	// Send initial status
+	uploadMutex.Lock()
+	isUploading := uploadInProgress
+	uploadMutex.Unlock()
+	
+	if !isUploading {
+		initialUpdate := ProgressUpdate{
+			Percentage: 0,
+			Status:     "ready",
+			Message:    "Ready to upload",
+		}
+		fmt.Fprintf(w, "data: %s\n\n", toJSON(initialUpdate))
+		w.(http.Flusher).Flush()
+	}
+	
+	// Listen for progress updates
+	for {
+		select {
+		case update := <-client:
+			fmt.Fprintf(w, "data: %s\n\n", toJSON(update))
+			w.(http.Flusher).Flush()
+		case <-r.Context().Done():
+			return
+		}
+	}
+}
+
+// toJSON converts struct to JSON string
+func toJSON(v interface{}) string {
+	data, err := json.Marshal(v)
+	if err != nil {
+		return "{}"
+	}
+	return string(data)
+}
 
 // progressHandler handles the progress endpoint
 func progressHandler(w http.ResponseWriter, r *http.Request) {
