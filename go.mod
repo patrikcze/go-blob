@@ -1,6 +1,6 @@
 module github.com/patrikcze/go-blob
 
-go 1.24.1
+go 1.24.5
 
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.9.0
