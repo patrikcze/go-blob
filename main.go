@@ -602,6 +602,7 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 						total:  fileSize,
 						update: uploadState.Update,
 					}
+					fileClosedByProgressReader = true
 					_, uploadErr = blockBlobClient.Upload(ctx, progressFile, nil)
 				} else {
 					// Stream upload directly from multipart file (large files)
@@ -611,6 +612,7 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 						total:  fileSize,
 						update: uploadState.Update,
 					}
+					fileClosedByProgressReader = true
 					
 					_, uploadErr = blockBlobClient.Upload(ctx, progressFile, nil)
 				}
